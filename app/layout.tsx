@@ -1,28 +1,26 @@
 import "./globals.css";
-// 🎯 นำเข้าฟอนต์จาก Google Fonts
-import { IBMPlexSansThai } from 'next/font/google'
+// 🎯 แก้ไขการ Import ให้ชื่อตรงตามที่ Library กำหนด
+import { IBM_Plex_Sans_Thai } from "next/font/google";
 import AppWrapper from "./AppWrapper";
 
-// 🎯 ตั้งค่าฟอนต์
-const ibmPlexThai = IBMPlexSansThai({
-  subsets: ['thai'],
-  weight: ['400', '700'],
-  variable: '--font-ibm-plex-thai', // ตั้งค่าเป็นตัวแปร CSS
-})
+// 🎯 ปรับ Subsets ให้มี 'latin' ควบคู่กับ 'thai' เสมอ
+const ibmPlexThai = IBM_Plex_Sans_Thai({
+  weight: ["400", "500", "700"],
+  subsets: ["thai", "latin"],
+  display: "swap",
+  variable: "--font-ibm-plex-thai",
+});
 
 export const metadata = {
-  title: "ibung - IG เก๊",
-  description: "IG ที่เจ้ปอไม่โดนแบน",
+  title: "ibung - Minimal Social App",
+  description: "Share your moments in a clean way",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // 🎯 ใส่ className ของฟอนต์ที่นี่
     <html lang="th" className={`${ibmPlexThai.variable}`}>
-      <body>
-        <AppWrapper>
-          {children}
-        </AppWrapper>
+      <body className="font-sans antialiased bg-[#F9FAFB] dark:bg-[#0A0F0A]">
+        <AppWrapper>{children}</AppWrapper>
       </body>
     </html>
   );
