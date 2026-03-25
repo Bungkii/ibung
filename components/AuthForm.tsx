@@ -61,37 +61,45 @@ export default function AuthForm() {
   };
 
   // ระบบสมัครสมาชิก
-  const handleRegister = async (e: React.FormEvent) => {
+const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !username) return alert("กรุณากรอกข้อมูลให้ครบ");
-    
-    // 🛡️ เช็คด่านสุดท้ายก่อนส่งไป Firebase
-    if (passError) return alert("รหัสผ่านยังไม่ปลอดภัยพอ กรุณาแก้ไขตามคำแนะนำ");
+    if (passError) return alert("รหัสผ่านยังไม่ปลอดภัยพอ");
 
     setLoading(true);
     try {
+      // 1. สร้าง User ใน Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       let photoURL = "https://via.placeholder.com/150";
+
+      // 🚀 2. ถ้ามีรูปโปรไฟล์ ให้ส่งไป ImgBB แทน Firebase Storage
       if (file) {
-        const imageRef = storageRef(storage, `profiles/${user.uid}_${file.name}`);
-        await uploadBytes(imageRef, file);
-        photoURL = await getDownloadURL(imageRef);
+        const formData = new FormData();
+        formData.append("image", file);
+        
+        // 🔑 อย่าลืมเปลี่ยน API_KEY ตรงนี้ด้วยนะครับ
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=ใส่_API_KEY_ของพี่ตรงนี้`, {
+          method: "POST",
+          body: formData,
+        });
+        const imgData = await res.json();
+        if (imgData.success) photoURL = imgData.data.url;
       }
 
+      // 3. อัปเดต Profile และบันทึกลง Realtime DB
       await updateProfile(user, { displayName: username, photoURL });
       await set(dbRef(db, `users/${user.uid}`), {
         uid: user.uid,
         displayName: username,
         photoURL: photoURL,
         email: email,
+        timestamp: Date.now()
       });
 
     } catch (error: any) {
-      // ดัก Error จาก Firebase กรณีอีเมลซ้ำ
-      if (error.code === 'auth/email-already-in-use') alert("อีเมลนี้ถูกใช้งานแล้ว!");
-      else alert("สมัครสมาชิกไม่สำเร็จ: " + error.message);
+      alert("สมัครสมาชิกไม่สำเร็จ: " + error.message);
     } finally {
       setLoading(false);
     }
