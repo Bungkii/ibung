@@ -1,53 +1,39 @@
 "use client";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, query, limitToLast } from "firebase/database";
+import PostCard from "@/components/PostCard";
+import { Loader2 } from "lucide-react";
 
 export default function HomeFeed() {
   const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const postsRef = ref(db, 'posts');
-    const unsubscribe = onValue(postsRef, (snapshot) => {
-      const data = snapshot.val();
+    const postsRef = query(ref(db, 'posts'), limitToLast(50));
+    return onValue(postsRef, (snap) => {
+      const data = snap.val();
       if (data) {
-        const postList = Object.keys(data)
-          .map(key => ({ id: key, ...data[key] }))
-          .sort((a, b) => b.timestamp - a.timestamp); // เรียงล่าสุดขึ้นก่อน
-        setPosts(postList);
-      } else {
-        setPosts([]);
+        const list = Object.keys(data).map(k => ({ id: k, ...data[k] })).reverse();
+        setPosts(list);
       }
+      setLoading(false);
     });
-    return () => unsubscribe();
   }, []);
 
   return (
-    <div className="pb-4">
-      <div className="p-4 sticky top-0 bg-white/90 dark:bg-green-900/90 backdrop-blur z-10 border-b dark:border-green-800">
-        <h1 className="text-2xl font-bold text-green-600 dark:text-green-400 font-serif">ibung</h1>
-      </div>
-
-      <div className="space-y-6 pt-4">
-        {posts.map(post => (
-          <div key={post.id} className="bg-white dark:bg-green-800/50 rounded-xl mx-2 overflow-hidden shadow-sm border dark:border-green-800">
-            <div className="px-4 py-3 flex items-center gap-3 font-bold text-sm text-gray-800 dark:text-green-100">
-              <img src={post.authorPhoto || "https://via.placeholder.com/40"} className="w-8 h-8 rounded-full" alt="profile" />
-              {post.authorName}
-            </div>
-
-            {post.imageUrl && (
-              <img src={post.imageUrl} className="w-full object-cover max-h-[500px]" alt="post" />
-            )}
-
-            <div className="p-4 text-sm text-gray-800 dark:text-gray-200">
-              <span className="font-bold mr-2 text-green-700 dark:text-green-300">{post.authorName}</span>
-              {post.caption}
-            </div>
-          </div>
-        ))}
-        {posts.length === 0 && <p className="text-center text-gray-500 mt-10">โพสหน่อยคาบ</p>}
-      </div>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <header className="flex items-center justify-between mb-8 md:hidden">
+        <h1 className="text-2xl font-bold text-green-600 font-serif">ibung</h1>
+      </header>
+      
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-green-500" /></div>
+      ) : (
+        <div className="grid grid-cols-1 gap-8">
+          {posts.map(post => <PostCard key={post.id} post={post} />)}
+        </div>
+      )}
     </div>
   );
 }

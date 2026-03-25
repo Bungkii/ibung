@@ -1,177 +1,60 @@
 "use client";
-import { useState, useEffect } from "react";
-import { auth, db } from "@/lib/firebase";
-import { ref, onValue, update, query, orderByChild, equalTo } from "firebase/database";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { db, auth } from "@/lib/firebase";
+import { ref, onValue, query, orderByChild, equalTo } from "firebase/database";
+import { useParams } from "next/navigation";
+import { Grid, LogOut, Settings } from "lucide-react";
 
 export default function ProfilePage() {
-  const params = useParams();
-  const router = useRouter();
-  const uid = params.uid as string; // ไอดีของเจ้าของโปรไฟล์ที่กำลังดูอยู่
-  const currentUser = auth.currentUser;
+  const { uid } = useParams();
+  const [user, setUser] = useState<any>(null);
+  const [posts, setPosts] = useState<any[]>([]);
 
-  const [profile, setProfile] = useState<any>(null);
-  const [userPosts, setUserPosts] = useState<any[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
-  
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-
-  // 1. โหลดข้อมูลโปรไฟล์และสถานะการติดตาม
   useEffect(() => {
-    if (!uid) return;
-
-    // โหลดข้อมูล User
-    const userRef = ref(db, `users/${uid}`);
-    const unsubscribeUser = onValue(userRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setProfile(data);
-        // นับจำนวน Followers / Following
-        const followers = data.followers ? Object.keys(data.followers).length : 0;
-        const following = data.following ? Object.keys(data.following).length : 0;
-        setFollowersCount(followers);
-        setFollowingCount(following);
-
-        // เช็คว่าเรา Follow เขาอยู่ไหม
-        if (currentUser && data.followers && data.followers[currentUser.uid]) {
-          setIsFollowing(true);
-        } else {
-          setIsFollowing(false);
-        }
-      }
+    onValue(ref(db, `users/${uid}`), s => setUser(s.val()));
+    const pRef = query(ref(db, 'posts'), orderByChild('authorId'), equalTo(uid as string));
+    onValue(pRef, s => {
+      const data = s.val();
+      setPosts(data ? Object.values(data).reverse() : []);
     });
+  }, [uid]);
 
-    // 2. โหลดโพสต์ของคนๆ นี้ (ดึงเฉพาะโพสต์ที่ authorId ตรงกับ uid)
-    const postsRef = query(ref(db, 'posts'), orderByChild('authorId'), equalTo(uid));
-    const unsubscribePosts = onValue(postsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        // แปลงเป็น Array และสลับให้โพสต์ใหม่สุดอยู่บนสุด
-        const postList = Object.keys(data)
-          .map(key => ({ id: key, ...data[key] }))
-          .sort((a, b) => b.timestamp - a.timestamp);
-        setUserPosts(postList);
-      } else {
-        setUserPosts([]);
-      }
-    });
-
-    return () => {
-      unsubscribeUser();
-      unsubscribePosts();
-    };
-  }, [uid, currentUser]);
-
-  // ระบบ Follow / Unfollow (อัปเดตฐานข้อมูล 2 จุดพร้อมกัน)
-  const toggleFollow = async () => {
-    if (!currentUser) {
-      alert("กรุณาล็อกอินก่อน");
-      return;
-    }
-
-    const updates: any = {};
-    if (isFollowing) {
-      // เลิกติดตาม: ลบข้อมูลออก (ตั้งค่าเป็น null)
-      updates[`users/${uid}/followers/${currentUser.uid}`] = null;
-      updates[`users/${currentUser.uid}/following/${uid}`] = null;
-    } else {
-      // ติดตาม: เพิ่มข้อมูลเข้าไป (ตั้งค่าเป็น true)
-      updates[`users/${uid}/followers/${currentUser.uid}`] = true;
-      updates[`users/${currentUser.uid}/following/${uid}`] = true;
-    }
-
-    try {
-      // อัปเดตฐานข้อมูล (Realtime DB)
-      await update(ref(db), updates);
-    } catch (error) {
-      console.error("Follow error:", error);
-    }
-  };
-
-  const isMe = currentUser?.uid === uid;
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-green-950 pb-20">
-      {/* Header (Top Bar) */}
-      <div className="p-4 border-b dark:border-green-800 sticky top-0 bg-white/90 dark:bg-green-900/90 backdrop-blur z-10 flex items-center justify-between">
-        <button onClick={() => router.back()} className="text-2xl text-green-600 dark:text-green-400">←</button>
-        <h1 className="font-bold text-lg text-gray-800 dark:text-green-100">
-          {profile?.displayName || "กำลังโหลด..."}
-        </h1>
-        <div className="w-8"></div> {/* ตัวดันให้ตรงกลาง */}
-      </div>
-
-      {/* Profile Info */}
-      <div className="p-6 border-b dark:border-green-800 bg-green-50/50 dark:bg-green-900/30">
-        <div className="flex items-center gap-6">
-          <img 
-            src={profile?.photoURL || "https://via.placeholder.com/150"} 
-            className="w-24 h-24 rounded-full border-4 border-green-500 dark:border-green-400 shadow-lg object-cover" 
-            alt="profile" 
-          />
-          <div className="flex-1 flex justify-around text-center">
-            <div>
-              <div className="font-bold text-xl text-gray-800 dark:text-white">{userPosts.length}</div>
-              <div className="text-xs text-gray-500 dark:text-green-300">โพสต์</div>
-            </div>
-            <div>
-              <div className="font-bold text-xl text-gray-800 dark:text-white">{followersCount}</div>
-              <div className="text-xs text-gray-500 dark:text-green-300">ผู้ติดตาม</div>
-            </div>
-            <div>
-              <div className="font-bold text-xl text-gray-800 dark:text-white">{followingCount}</div>
-              <div className="text-xs text-gray-500 dark:text-green-300">กำลังติดตาม</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <p className="font-bold text-gray-800 dark:text-green-100">{profile?.displayName}</p>
-          <p className="text-sm text-gray-600 dark:text-green-200 mt-1">{profile?.bio || "ยังไม่มีคำอธิบายโปรไฟล์"}</p>
-        </div>
-
-        {/* ปุ่ม Follow / Edit Profile */}
-        <div className="mt-6">
-          {isMe ? (
-            <button className="w-full py-2 bg-gray-100 dark:bg-green-800 text-gray-800 dark:text-green-100 font-bold rounded-lg border dark:border-green-700 hover:bg-gray-200 dark:hover:bg-green-700 transition">
-              แก้ไขโปรไฟล์
-            </button>
-          ) : (
-            <button 
-              onClick={toggleFollow}
-              className={`w-full py-2 font-bold rounded-lg transition ${
-                isFollowing 
-                  ? "bg-gray-200 dark:bg-green-800 text-gray-800 dark:text-green-100 border dark:border-green-700" 
-                  : "bg-green-500 text-white hover:bg-green-600"
-              }`}
-            >
-              {isFollowing ? "เลิกติดตาม" : "ติดตาม"}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Grid ของรูปภาพโพสต์แบบ IG */}
-      <div className="grid grid-cols-3 gap-1 mt-1">
-        {userPosts.map(post => (
-          <div key={post.id} className="aspect-square bg-gray-200 dark:bg-green-800 cursor-pointer hover:opacity-80 transition relative">
-            {post.imageUrl ? (
-              <img src={post.imageUrl} className="w-full h-full object-cover" alt="post" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-green-500 text-xs text-center p-2">
-                {post.caption?.substring(0, 20)}...
+    <div className="max-w-4xl mx-auto py-10">
+      <div className="flex flex-col md:flex-row items-center gap-10 mb-16 px-6">
+        <img src={user.photoURL} className="w-32 h-32 md:w-44 md:h-44 rounded-full border-4 border-white dark:border-green-900 shadow-xl object-cover" />
+        <div className="flex-1 text-center md:text-left">
+          <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
+            <h1 className="text-2xl font-bold">{user.displayName}</h1>
+            {auth.currentUser?.uid === uid && (
+              <div className="flex gap-2">
+                <button className="px-6 py-1.5 bg-white dark:bg-green-900 border rounded-lg text-sm font-bold shadow-sm">แก้ไขโปรไฟล์</button>
+                <button onClick={() => auth.signOut()} className="p-2 text-red-500"><LogOut size={20}/></button>
               </div>
             )}
           </div>
-        ))}
-      </div>
-      
-      {userPosts.length === 0 && (
-        <div className="text-center py-12 text-gray-400 dark:text-green-600">
-          ยังไม่มีโพสต์
+          <div className="flex justify-center md:justify-start gap-8 text-sm">
+            <span><b>{posts.length}</b> โพสต์</span>
+            <span><b>0</b> ผู้ติดตาม</span>
+            <span><b>0</b> กำลังติดตาม</span>
+          </div>
         </div>
-      )}
+      </div>
+
+      <div className="border-t dark:border-green-900/20 pt-10">
+        <div className="flex justify-center gap-10 mb-8 text-xs font-bold uppercase tracking-widest text-gray-400">
+          <span className="flex items-center gap-2 text-green-600 border-t-2 border-green-600 pt-2"><Grid size={14}/> Posts</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1 md:gap-4 px-1">
+          {posts.map((p: any, i) => (
+            <div key={i} className="aspect-square bg-gray-200 dark:bg-green-900/20 rounded-lg overflow-hidden group relative">
+              <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
