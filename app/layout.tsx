@@ -3,7 +3,7 @@ import AppWrapper from "./AppWrapper";
 
 // 🎯 ตรงนี้คือหัวใจของการทำ SEO (ทำให้เสิร์จเจอใน Google)
 export const metadata = {
-  title: "ibung - แอพแชทและแชร์รูปภาพสไตล์ IG",
+  title: "ibung - IG เก๊",
   description: "เข้าร่วม ibung เพื่อเชื่อมต่อกับเพื่อนๆ แชร์รูปภาพสุดประทับใจ และแชทกันแบบ Real-time",
   keywords: "ibung, แอพแชท, โซเชียลมีเดีย, แชร์รูปภาพ",
 };

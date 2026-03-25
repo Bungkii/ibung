@@ -46,7 +46,7 @@ export default function HomeFeed() {
             </div>
           </div>
         ))}
-        {posts.length === 0 && <p className="text-center text-gray-500 mt-10">ยังไม่มีโพสต์เลย ลองกดปุ่ม ➕ ดูสิ!</p>}
+        {posts.length === 0 && <p className="text-center text-gray-500 mt-10">โพสหน่อยคาบ</p>}
       </div>
     </div>
   );
