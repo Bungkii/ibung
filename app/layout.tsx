@@ -1,9 +1,7 @@
 import "./globals.css";
-// 🎯 แก้ไขการ Import ให้ชื่อตรงตามที่ Library กำหนด
 import { IBM_Plex_Sans_Thai } from "next/font/google";
 import AppWrapper from "./AppWrapper";
 
-// 🎯 ปรับ Subsets ให้มี 'latin' ควบคู่กับ 'thai' เสมอ
 const ibmPlexThai = IBM_Plex_Sans_Thai({
   weight: ["400", "500", "700"],
   subsets: ["thai", "latin"],
@@ -12,8 +10,8 @@ const ibmPlexThai = IBM_Plex_Sans_Thai({
 });
 
 export const metadata = {
-  title: "ibung - Minimal Social App",
-  description: "Share your moments in a clean way",
+  title: "ibung - ig เก๊",
+  description: "คู่แข่ง ig ไม่นานigเจ้งเพราะเจ้ปอเล้นไม่ได้",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
