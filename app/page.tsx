@@ -11,8 +11,11 @@ export default function HomePage() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingStories, setLoadingStories] = useState(true);
   
-  // 🎯 State สำหรับเปิดดูสตอรี่เต็มจอ
-  const [selectedStory, setSelectedStory] = useState<any>(null);
+  // 🎯 State สำหรับเก็บ "ลำดับ (Index)" ของสตอรี่ที่กำลังดูอยู่
+  const [currentStoryIndex, setCurrentStoryIndex] = useState<number | null>(null);
+  
+  // ดึงข้อมูลคนที่เรากำลังดูอยู่ ณ ปัจจุบัน
+  const activeStory = currentStoryIndex !== null ? stories[currentStoryIndex] : null;
 
   // 1. ดึงข้อมูลโพสต์ (Feed + Repost)
   useEffect(() => {
@@ -103,6 +106,26 @@ export default function HomePage() {
     return `${Math.floor(seconds / 86400)} วันที่แล้ว`;
   };
 
+  // 🎯 ฟังก์ชันเปลี่ยนสตอรี่ (แตะขวา)
+  const handleNextStory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentStoryIndex !== null && currentStoryIndex < stories.length - 1) {
+      setCurrentStoryIndex(currentStoryIndex + 1); // ไปคนต่อไป
+    } else {
+      setCurrentStoryIndex(null); // ถ้าหมดแล้วให้ปิดหน้าต่าง
+    }
+  };
+
+  // 🎯 ฟังก์ชันเปลี่ยนสตอรี่ (แตะซ้าย)
+  const handlePrevStory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentStoryIndex !== null && currentStoryIndex > 0) {
+      setCurrentStoryIndex(currentStoryIndex - 1); // ย้อนกลับคนก่อนหน้า
+    } else {
+      setCurrentStoryIndex(null); // ถ้าอยู่คนแรกแล้วแตะซ้าย ให้ปิดหน้าต่าง
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24 font-sans text-slate-900 dark:text-slate-100 antialiased">
       
@@ -143,8 +166,8 @@ export default function HomePage() {
           <div className="flex items-center text-xs text-gray-400 font-bold px-2 pt-5">ยังไม่มีสตอรี่ใหม่...</div>
         ) : (
           stories.map((story, i) => (
-            // 🎯 เวลากดที่วงกลม จะสั่งให้เปิด Modal สตอรี่
-            <div key={i} onClick={() => setSelectedStory(story)} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
+            // 🎯 เวลากดที่วงกลม จะบันทึกเลข Index ของคนๆ นั้น
+            <div key={i} onClick={() => setCurrentStoryIndex(i)} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="w-16 h-16 rounded-full p-1 ring-2 ring-green-500">
                 <img src={story.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
               </div>
@@ -216,35 +239,46 @@ export default function HomePage() {
       </main>
 
       {/* 🎯 Story Viewer Modal (หน้าต่างเด้งดูสตอรี่เต็มจอ) */}
-      {selectedStory && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
+      {activeStory && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-200">
           
           {/* แถบด้านบน (โปรไฟล์ + ปุ่มปิด) */}
-          <div className="px-4 py-4 flex items-center justify-between absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent z-10">
+          <div className="px-4 py-4 flex items-center justify-between absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent z-30">
             <div className="flex items-center gap-3">
-              <img src={selectedStory.userPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full border border-gray-700" alt="" />
+              <img src={activeStory.userPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full border border-gray-700" alt="" />
               <div>
-                <h3 className="text-white font-bold text-sm">{selectedStory.userName}</h3>
-                <p className="text-gray-300 text-xs">{timeAgo(selectedStory.timestamp)}</p>
+                <h3 className="text-white font-bold text-sm">{activeStory.userName}</h3>
+                <p className="text-gray-300 text-xs">{timeAgo(activeStory.timestamp)}</p>
               </div>
             </div>
             <button 
-              onClick={() => setSelectedStory(null)} 
+              onClick={() => setCurrentStoryIndex(null)} 
               className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
             >
               <X size={24} />
             </button>
           </div>
 
-          {/* เนื้อหาสตอรี่ */}
-          <div className="flex-1 flex items-center justify-center p-4">
-            {selectedStory.imageUrl ? (
-              <img src={selectedStory.imageUrl} className="max-w-full max-h-[80vh] object-contain rounded-xl" alt="Story" />
-            ) : (
-              <div className="w-full max-w-sm aspect-[9/16] bg-gradient-to-br from-green-500 to-emerald-700 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
-                <p className="text-white text-2xl font-bold leading-relaxed">{selectedStory.caption || selectedStory.text}</p>
-              </div>
-            )}
+          {/* เนื้อหาสตอรี่ + โซนแตะหน้าจอ */}
+          <div className="flex-1 relative flex items-center justify-center">
+            
+            {/* 🎯 โซนล่องหน: แตะซ้าย (ย้อนกลับ) */}
+            <div className="absolute top-0 left-0 w-1/2 h-full z-20 cursor-pointer" onClick={handlePrevStory} />
+            
+            {/* 🎯 โซนล่องหน: แตะขวา (ไปต่อ) */}
+            <div className="absolute top-0 right-0 w-1/2 h-full z-20 cursor-pointer" onClick={handleNextStory} />
+
+            {/* รูปสตอรี่หรือข้อความ (อยู่ตรงกลาง) */}
+            <div className="relative z-10 p-4 w-full h-full flex items-center justify-center pointer-events-none">
+              {activeStory.imageUrl ? (
+                <img src={activeStory.imageUrl} className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" alt="Story" />
+              ) : (
+                <div className="w-full max-w-sm aspect-[9/16] bg-gradient-to-br from-green-500 to-emerald-700 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
+                  <p className="text-white text-2xl font-bold leading-relaxed drop-shadow-md">{activeStory.caption || activeStory.text}</p>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       )}
