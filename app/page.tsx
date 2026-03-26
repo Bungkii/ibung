@@ -11,13 +11,9 @@ export default function HomePage() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingStories, setLoadingStories] = useState(true);
   
-  // 🎯 State สำหรับเก็บ "ลำดับ (Index)" ของสตอรี่ที่กำลังดูอยู่
   const [currentStoryIndex, setCurrentStoryIndex] = useState<number | null>(null);
-  
-  // ดึงข้อมูลคนที่เรากำลังดูอยู่ ณ ปัจจุบัน
   const activeStory = currentStoryIndex !== null ? stories[currentStoryIndex] : null;
 
-  // 1. ดึงข้อมูลโพสต์ (Feed + Repost)
   useEffect(() => {
     const postsRef = ref(db, 'posts');
     const unsubscribe = onValue(postsRef, (snapshot) => {
@@ -36,7 +32,6 @@ export default function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. ดึงข้อมูลสตอรี่ (24 ชม. ล่าสุด)
   useEffect(() => {
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const storiesRef = query(ref(db, 'stories'), orderByChild('timestamp'), startAt(oneDayAgo));
@@ -44,14 +39,12 @@ export default function HomePage() {
     const unsubscribe = onValue(storiesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // จัดกลุ่มสตอรี่ตาม User (โชว์แค่รูปโปรไฟล์คนลง)
         const usersWithStories: { [key: string]: any } = {};
         Object.values(data).forEach((story: any) => {
           if (!usersWithStories[story.userId]) {
-            usersWithStories[story.userId] = story; // เก็บแค่ 1 entry ต่อ 1 user เพื่อโชว์ในแถบ
+            usersWithStories[story.userId] = story;
           }
         });
-        
         const storiesArray = Object.values(usersWithStories).sort((a: any, b: any) => b.timestamp - a.timestamp);
         setStories(storiesArray);
       } else {
@@ -62,7 +55,6 @@ export default function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // ฟังก์ชันรีโพสต์
   const handleRepost = async (post: any) => {
     if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
     if (post.reposterId === auth.currentUser.uid) return alert("คุณได้รีโพสต์สิ่งนี้ไปแล้วครับ!");
@@ -89,7 +81,6 @@ export default function HomePage() {
     }
   };
 
-  // ฟังก์ชันกดไลก์
   const handleLike = async (postId: string, currentLikes: any = {}) => {
     if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
     const myId = auth.currentUser.uid;
@@ -108,30 +99,27 @@ export default function HomePage() {
     return `${Math.floor(seconds / 86400)} วันที่แล้ว`;
   };
 
-  // 🎯 ฟังก์ชันเปลี่ยนสตอรี่ (แตะขวา)
   const handleNextStory = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (currentStoryIndex !== null && currentStoryIndex < stories.length - 1) {
-      setCurrentStoryIndex(currentStoryIndex + 1); // ไปคนต่อไป
+      setCurrentStoryIndex(currentStoryIndex + 1);
     } else {
-      setCurrentStoryIndex(null); // ถ้าหมดแล้วให้ปิดหน้าต่าง
+      setCurrentStoryIndex(null);
     }
   };
 
-  // 🎯 ฟังก์ชันเปลี่ยนสตอรี่ (แตะซ้าย)
   const handlePrevStory = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (currentStoryIndex !== null && currentStoryIndex > 0) {
-      setCurrentStoryIndex(currentStoryIndex - 1); // ย้อนกลับคนก่อนหน้า
+      setCurrentStoryIndex(currentStoryIndex - 1);
     } else {
-      setCurrentStoryIndex(null); // ถ้าอยู่คนแรกแล้วแตะซ้าย ให้ปิดหน้าต่าง
+      setCurrentStoryIndex(null);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24 font-sansantialiased text-slate-900 dark:text-slate-100 antialiased font-sans">
       
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0A0F0A]/90 backdrop-blur-md border-b dark:border-green-900/30 px-5 py-3 flex items-center h-[60px] relative">
         <div className="absolute left-1/2 -translate-x-1/2">
           <h1 className="text-2xl font-bold text-green-500 tracking-tighter">ibung</h1>
@@ -143,10 +131,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* แถบสตอรี่ด้านบน */}
       <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 py-5 bg-white dark:bg-[#0D140D] border-b dark:border-green-900/20">
-        
-        {/* ปุ่มเพิ่มสตอรี่ของตัวเอง */}
         <Link href="/post/story" className="flex-shrink-0 flex flex-col items-center gap-1.5 group">
           <div className="relative w-16 h-16 rounded-full p-1 border-2 border-dashed border-gray-300 dark:border-green-800 flex items-center justify-center group-hover:border-green-500 transition-colors">
             <img src={auth.currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
@@ -157,7 +142,6 @@ export default function HomePage() {
           <span className="text-[11px] text-gray-400 group-hover:text-green-500 font-bold">สตอรี่</span>
         </Link>
 
-        {/* สตอรี่ของเพื่อนๆ */}
         {loadingStories ? (
           <div className="flex gap-4">
             {[...Array(3)].map((_, i) => (
@@ -171,9 +155,8 @@ export default function HomePage() {
           <div className="flex items-center text-xs text-gray-400 font-bold px-2 pt-5">ยังไม่มีสตอรี่ใหม่...</div>
         ) : (
           stories.map((story, i) => (
-            // 🎯 เวลากดที่วงกลม จะบันทึกเลข Index ของคนๆ นั้น
             <div key={i} onClick={() => setCurrentStoryIndex(i)} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="w-16 h-16 rounded-full p-1 ring-2 ring-green-500"> {/* แหวนเขียวบอกว่ามีสตอรี่ */}
+              <div className="w-16 h-16 rounded-full p-1 ring-2 ring-green-500">
                 <img src={story.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
               </div>
               <span className="text-[11px] text-gray-500 w-16 truncate text-center">{story.userName}</span>
@@ -182,7 +165,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Main Feed */}
       <main className="max-w-xl mx-auto mt-6 px-4 flex flex-col gap-6">
         {loadingPosts ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-green-500 w-10 h-10" /></div>
@@ -199,7 +181,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* ส่วนหัวของโพสต์ (รูปโปรไฟล์ + ชื่อ) */}
               <div className={`flex items-center justify-between px-6 pb-3 ${post.isRepost ? 'pt-1' : 'pt-5'}`}>
                 <div className="flex items-center gap-3">
                   <img src={post.authorPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-green-900/30" alt="" />
@@ -211,7 +192,6 @@ export default function HomePage() {
                 <button className="text-gray-400 hover:text-gray-600 active:scale-90 transition-all"><MoreHorizontal size={20} /></button>
               </div>
 
-              {/* เนื้อหาโพสต์ (แคปชั่น + รูปภาพ) */}
               <div className="px-6 pb-4">
                 {post.caption && <p className="text-sm text-gray-800 dark:text-gray-200 mb-3 whitespace-pre-wrap">{post.caption}</p>}
                 {post.imageUrl && (
@@ -221,7 +201,6 @@ export default function HomePage() {
                 )}
               </div>
 
-              {/* แถบเครื่องมือ (Like, Comment, Repost) */}
               <div className="px-4 py-3 border-t dark:border-green-900/20 flex items-center justify-between">
                 <div className="flex gap-2">
                   <button onClick={() => handleLike(post.id, post.likes)} className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.likes?.[auth.currentUser?.uid || ''] ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10'}`}>
@@ -240,17 +219,15 @@ export default function HomePage() {
                   </button>
                 </div>
               </div>
-
             </article>
           ))
         )}
       </main>
 
-      {/* 🎯 Story Viewer Modal (หน้าต่างเด้งดูสตอรี่เต็มจอ) */}
+      {/* 🎯 Story Viewer Modal */}
       {activeStory && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-200">
           
-          {/* แถบด้านบน (โปรไฟล์ + ปุ่มปิด) */}
           <div className="px-4 py-4 flex items-center justify-between absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent z-30 pointer-events-none">
             <div className="flex items-center gap-3">
               <img src={activeStory.userPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full border border-gray-700" alt="" />
@@ -267,34 +244,27 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* เนื้อหาสตอรี่ + โซนแตะหน้าจอ */}
           <div className="flex-1 relative flex items-center justify-center">
             
-            {/* 🎯 โซนล่องหน: แตะซ้าย (ย้อนกลับ) */}
             <div className="absolute top-0 left-0 w-1/2 h-full z-20 cursor-pointer" onClick={handlePrevStory} />
-            
-            {/* 🎯 โซนล่องหน: แตะขวา (ไปต่อ) */}
             <div className="absolute top-0 right-0 w-1/2 h-full z-20 cursor-pointer" onClick={handleNextStory} />
 
-            {/* รูปสตอรี่หรือข้อความ (อยู่ตรงกลาง) */}
             <div className="relative z-10 p-4 w-full h-full flex items-center justify-center pointer-events-none">
               
-              {/* 🎯 แก้ไขล่องหนเช็ค field name ของรูปภาพให้เป๊ะๆ */}
-              {(activeStory.imageUrl || activeStory.imageUrl) ? (
+              {/* 🎯 แก้จุดบอดตรงนี้! เปลี่ยนเป็นหาคำว่า url ตรงๆ เลยตามฐานข้อมูลพี่! */}
+              {activeStory.url ? (
                 <img 
-                  src={activeStory.imageUrl || activeStory.imageUrl} 
+                  src={activeStory.url} 
                   className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" 
                   alt="Story Content" 
                 />
               ) : (activeStory.caption || activeStory.text) ? (
-                // กรณีเป็นสตอรี่ข้อความ
                 <div className="w-full max-w-sm aspect-[9/16] bg-gradient-to-br from-green-500 to-emerald-700 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
                   <p className="text-white text-2xl font-bold leading-relaxed drop-shadow-md">
                     {activeStory.caption || activeStory.text}
                   </p>
                 </div>
               ) : (
-                 // กรณีฉุกเฉินดึงข้อมูลไม่ได้
                  <div className="w-full max-w-sm aspect-[9/16] bg-gray-800 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
                    <p className="text-gray-400 text-sm">ไม่พบรูปภาพหรือข้อความของสตอรี่นี้ครับ!</p>
                  </div>
