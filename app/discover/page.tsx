@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, get, update } from "firebase/database";
-import TinderCard from "react-tinder-card";
+import dynamic from "next/dynamic";
+const TinderCard = dynamic(() => import("react-tinder-card"), { ssr: false });
 import { Heart, X, Loader2, Sparkles, UserPlus } from "lucide-react";
 import Link from "next/link";
 
