@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, onValue, push, update, query, orderByChild, startAt } from "firebase/database";
-import { Heart, MessageCircle, Repeat, Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { Heart, MessageCircle, Repeat, Loader2, MoreHorizontal, Plus, X } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -10,6 +10,9 @@ export default function HomePage() {
   const [stories, setStories] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingStories, setLoadingStories] = useState(true);
+  
+  // 🎯 State สำหรับเปิดดูสตอรี่เต็มจอ
+  const [selectedStory, setSelectedStory] = useState<any>(null);
 
   // 1. ดึงข้อมูลโพสต์ (Feed + Repost)
   useEffect(() => {
@@ -30,7 +33,7 @@ export default function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. ดึงข้อมูลสตอรี่ (กรองเอาแค่ 24 ชม. ล่าสุด)
+  // 2. ดึงข้อมูลสตอรี่ (24 ชม. ล่าสุด)
   useEffect(() => {
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const storiesRef = query(ref(db, 'stories'), orderByChild('timestamp'), startAt(oneDayAgo));
@@ -44,7 +47,6 @@ export default function HomePage() {
             usersWithStories[story.userId] = story;
           }
         });
-        
         const storiesArray = Object.values(usersWithStories).sort((a: any, b: any) => b.timestamp - a.timestamp);
         setStories(storiesArray);
       } else {
@@ -58,9 +60,7 @@ export default function HomePage() {
   // ฟังก์ชันรีโพสต์
   const handleRepost = async (post: any) => {
     if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
-    if (post.reposterId === auth.currentUser.uid) {
-      return alert("คุณได้รีโพสต์สิ่งนี้ไปแล้วครับ!");
-    }
+    if (post.reposterId === auth.currentUser.uid) return alert("คุณได้รีโพสต์สิ่งนี้ไปแล้วครับ!");
     const confirmRepost = confirm("ต้องการรีโพสต์นี้ไปที่หน้าฟีดของคุณหรือไม่?");
     if (!confirmRepost) return;
 
@@ -84,7 +84,7 @@ export default function HomePage() {
     }
   };
 
-  // ฟังก์ชันกดหัวใจ (กดไลก์)
+  // ฟังก์ชันกดไลก์
   const handleLike = async (postId: string, currentLikes: any = {}) => {
     if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
     const myId = auth.currentUser.uid;
@@ -95,7 +95,6 @@ export default function HomePage() {
     await update(ref(db), { [`posts/${postId}/likes`]: newLikes });
   };
 
-  // แปลงเวลาให้ดูง่ายๆ
   const timeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
     if (seconds < 60) return "เมื่อสักครู่";
@@ -105,16 +104,13 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24 font-sansantialiased text-slate-900 dark:text-slate-100 antialiased font-sans">
+    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24 font-sans text-slate-900 dark:text-slate-100 antialiased">
       
-      {/* 🎯 Header โลโก้แอป ( sticky + จัด ibung อยู่กลาง ) */}
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0A0F0A]/90 backdrop-blur-md border-b dark:border-green-900/30 px-5 py-3 flex items-center h-[60px] relative">
-        {/* ชื่อแอปอยู่ตรงกลางเป๊ะ */}
         <div className="absolute left-1/2 -translate-x-1/2">
           <h1 className="text-2xl font-bold text-green-500 tracking-tighter">ibung</h1>
         </div>
-        
-        {/* ปุ่มบวกอยู่มุมขวา */}
         <div className="ml-auto">
           <Link href="/post/story" className="p-2 bg-green-500 text-white rounded-full font-bold active:scale-95 transition-all flex items-center justify-center">
             <Plus size={18} />
@@ -122,10 +118,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* สตอรี่บาร์ */}
+      {/* แถบสตอรี่ด้านบน */}
       <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 py-5 bg-white dark:bg-[#0D140D] border-b dark:border-green-900/20">
-        
-        {/* ปุ่มเพิ่มสตอรี่ของตัวเอง */}
         <Link href="/post/story" className="flex-shrink-0 flex flex-col items-center gap-1.5 group">
           <div className="relative w-16 h-16 rounded-full p-1 border-2 border-dashed border-gray-300 dark:border-green-800 flex items-center justify-center group-hover:border-green-500 transition-colors">
             <img src={auth.currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
@@ -136,7 +130,6 @@ export default function HomePage() {
           <span className="text-[11px] text-gray-400 group-hover:text-green-500 font-bold">สตอรี่</span>
         </Link>
 
-        {/* สตอรี่ของเพื่อนๆ */}
         {loadingStories ? (
           <div className="flex gap-4">
             {[...Array(3)].map((_, i) => (
@@ -150,7 +143,8 @@ export default function HomePage() {
           <div className="flex items-center text-xs text-gray-400 font-bold px-2 pt-5">ยังไม่มีสตอรี่ใหม่...</div>
         ) : (
           stories.map((story, i) => (
-            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer">
+            // 🎯 เวลากดที่วงกลม จะสั่งให้เปิด Modal สตอรี่
+            <div key={i} onClick={() => setSelectedStory(story)} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="w-16 h-16 rounded-full p-1 ring-2 ring-green-500">
                 <img src={story.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
               </div>
@@ -199,10 +193,7 @@ export default function HomePage() {
 
               <div className="px-4 py-3 border-t dark:border-green-900/20 flex items-center justify-between">
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleLike(post.id, post.likes)} 
-                    className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.likes?.[auth.currentUser?.uid || ''] ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10'}`}
-                  >
+                  <button onClick={() => handleLike(post.id, post.likes)} className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.likes?.[auth.currentUser?.uid || ''] ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10'}`}>
                     <Heart size={20} className={post.likes?.[auth.currentUser?.uid || ''] ? "fill-current" : ""} />
                     <span className="text-sm font-bold">{Object.keys(post.likes || {}).length || 0}</span>
                   </button>
@@ -212,10 +203,7 @@ export default function HomePage() {
                     <span className="text-sm font-bold">คอมเมนต์</span>
                   </Link>
 
-                  <button 
-                    onClick={() => handleRepost(post)} 
-                    className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.reposterId === auth.currentUser?.uid ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 hover:text-green-500'}`}
-                  >
+                  <button onClick={() => handleRepost(post)} className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.reposterId === auth.currentUser?.uid ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 hover:text-green-500'}`}>
                     <Repeat size={20} />
                     <span className="text-sm font-bold">รีโพสต์</span>
                   </button>
@@ -226,6 +214,41 @@ export default function HomePage() {
           ))
         )}
       </main>
+
+      {/* 🎯 Story Viewer Modal (หน้าต่างเด้งดูสตอรี่เต็มจอ) */}
+      {selectedStory && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
+          
+          {/* แถบด้านบน (โปรไฟล์ + ปุ่มปิด) */}
+          <div className="px-4 py-4 flex items-center justify-between absolute top-0 w-full bg-gradient-to-b from-black/60 to-transparent z-10">
+            <div className="flex items-center gap-3">
+              <img src={selectedStory.userPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full border border-gray-700" alt="" />
+              <div>
+                <h3 className="text-white font-bold text-sm">{selectedStory.userName}</h3>
+                <p className="text-gray-300 text-xs">{timeAgo(selectedStory.timestamp)}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSelectedStory(null)} 
+              className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* เนื้อหาสตอรี่ */}
+          <div className="flex-1 flex items-center justify-center p-4">
+            {selectedStory.imageUrl ? (
+              <img src={selectedStory.imageUrl} className="max-w-full max-h-[80vh] object-contain rounded-xl" alt="Story" />
+            ) : (
+              <div className="w-full max-w-sm aspect-[9/16] bg-gradient-to-br from-green-500 to-emerald-700 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
+                <p className="text-white text-2xl font-bold leading-relaxed">{selectedStory.caption || selectedStory.text}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
