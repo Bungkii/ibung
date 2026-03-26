@@ -3,10 +3,9 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, onValue, push, serverTimestamp, set, onDisconnect } from "firebase/database";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, User, Send, Loader2, Search, X } from "lucide-react";
+import { ArrowLeft, User, Send, Loader2, Search, X, Phone } from "lucide-react"; // 🎯 มี Phone
 import Link from "next/link";
 
-// 🎯 แยกส่วนเนื้อหาแชทออกมาไว้ใน Component ย่อย
 function ChatContent() {
   const searchParams = useSearchParams();
   const targetUid = searchParams.get("id");
@@ -135,14 +134,28 @@ function ChatContent() {
 
       {targetUid && (
         <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A] md:m-4 md:rounded-3xl md:border dark:border-green-900/20 overflow-hidden relative">
-          <header className="px-6 py-4 flex items-center gap-3 border-b dark:border-green-900/20 z-10">
-            <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
-            <div className="relative">
-              <img src={targetUser?.photoURL || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover" alt="" />
+          
+          {/* 🎯 Header แชทที่เพิ่มปุ่มโทร */}
+          <header className="px-6 py-4 flex items-center justify-between border-b dark:border-green-900/20 z-10">
+            <div className="flex items-center gap-3">
+              <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
+              <div className="relative">
+                <img src={targetUser?.photoURL || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover" alt="" />
+              </div>
+              <div>
+                <h2 className="font-bold leading-none">{targetUser?.displayName}</h2>
+              </div>
             </div>
-            <div>
-              <h2 className="font-bold leading-none">{targetUser?.displayName}</h2>
-            </div>
+
+            {/* 🎯 ปุ่มกดโทร (โชว์ที่มุมขวาบน) */}
+            {currentUser && targetUid && (
+              <Link 
+                href={`/call?room=${currentUser.uid < targetUid ? currentUser.uid + '_' + targetUid : targetUid + '_' + currentUser.uid}`} 
+                className="p-3 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full hover:bg-green-200 dark:hover:bg-green-800 transition-colors shadow-sm"
+              >
+                <Phone className="w-5 h-5 fill-current" />
+              </Link>
+            )}
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
@@ -167,6 +180,7 @@ function ChatContent() {
           <footer className="p-4 bg-white dark:bg-[#0D140D] border-t dark:border-green-900/20">
             <form onSubmit={sendMessage} className="flex gap-3 bg-gray-50 dark:bg-[#1A241A] rounded-2xl px-4 py-2">
               <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="flex-1 bg-transparent outline-none text-sm" />
+              {/* 🎯 แก้ไขบั๊กปุ่ม Send ตรงนี้ */}
               <button type="submit" className="p-2 bg-green-500 text-white rounded-xl"><Send className="w-4 h-4" /></button>
             </form>
           </footer>
@@ -189,7 +203,6 @@ function ChatContent() {
   );
 }
 
-// 🎯 ห่อหุ้มด้วย Suspense เพื่อให้ผ่าน Build Vercel
 export default function ChatPage() {
   return (
     <Suspense fallback={<div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin text-green-500 w-8 h-8" /></div>}>
