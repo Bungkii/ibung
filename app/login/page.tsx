@@ -60,3 +60,12 @@ export default function LoginPage() {
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "เข้าสู่ระบบ"}
           </button>
+        </form>
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          ยังไม่มีบัญชีใช่ไหม? <Link href="/register" className="text-green-500 font-bold hover:underline">สมัครสมาชิกเลย</Link>
+        </p>
+      </div>
+    </div>
+  );
+}
