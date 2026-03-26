@@ -90,7 +90,7 @@ export default function DiscoverPage() {
           usersToSwipe.map((user, index) => (
             <TinderCard
               key={user.uid}
-              ref={el => (cardRefs.current[index] = el)} // ส่ง Ref เก็บไว้
+              ref={el => { cardRefs.current[index] = el; }}
               className="absolute inset-0"
               onSwipe={(dir) => swiped(dir, user.uid)}
               onCardLeftScreen={() => outOfFrame(user.uid)}
