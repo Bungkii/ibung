@@ -145,7 +145,7 @@ function ChatContent() {
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
             {loading ? <div className="flex justify-center"><Loader2 className="animate-spin text-green-500" /></div> : 
               messages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
