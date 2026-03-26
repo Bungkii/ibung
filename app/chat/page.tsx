@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { db, auth } from "@/lib/firebase";
-import { ref, onValue, push, serverTimestamp } from "firebase/database";
+import { ref, onValue, push, serverTimestamp, set, onDisconnect } from "firebase/database";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, User, Send, Loader2, Search, X } from "lucide-react";
 import Link from "next/link";
@@ -11,17 +11,19 @@ export default function ChatPage() {
   const targetUid = searchParams.get("id");
   const currentUser = auth.currentUser;
   const [targetUser, setTargetUser] = useState<any>(null);
-  const [allUsers, setAllUsers] = useState<any[]>([]); // เก็บรายชื่อทั้งหมด
-  const [searchTerm, setSearchTerm] = useState(""); // 🎯 คำค้นหา
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // กรองรายชื่อเพื่อนจาก Username (Live Search)
-  const filteredUsers = allUsers.filter(user => 
-    user.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // 🎯 States สำหรับ IG Notes
+  const [myNote, setMyNote] = useState("");
+  const [allNotes, setAllNotes] = useState<any[]>([]);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+
+  const filteredUsers = allUsers.filter(user => user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,18 +31,35 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!currentUser) return;
+    
+    // ตั้งค่าสถานะออนไลน์ (สีเขียว)
+    const myStatusRef = ref(db, `status/${currentUser.uid}`);
+    set(myStatusRef, "online");
+    onDisconnect(myStatusRef).set("offline"); // ถ้าปิดเว็บให้เป็น offline
+
+    // โหลดรายชื่อผู้ใช้และสถานะ
     onValue(ref(db, 'users'), (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setAllUsers(Object.values(data).filter((u: any) => u.uid !== currentUser.uid));
+      const usersData = snapshot.val();
+      if (usersData) {
+        onValue(ref(db, 'status'), (statusSnap) => {
+          const statusData = statusSnap.val() || {};
+          const usersList = Object.values(usersData)
+            .filter((u: any) => u.uid !== currentUser.uid)
+            .map((u: any) => ({ ...u, isOnline: statusData[u.uid] === "online" }));
+          setAllUsers(usersList);
+        });
       }
     });
+
+    // โหลด IG Notes
+    onValue(ref(db, 'notes'), s => setAllNotes(s.val() ? Object.values(s.val()) : []));
   }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || !targetUid) return;
     setLoading(true);
     onValue(ref(db, `users/${targetUid}`), (snapshot) => setTargetUser(snapshot.val()));
+    
     const chatId = currentUser.uid < targetUid ? `${currentUser.uid}_${targetUid}` : `${targetUid}_${currentUser.uid}`;
     return onValue(ref(db, `chats/${chatId}`), (snapshot) => {
       const data = snapshot.val();
@@ -57,109 +76,125 @@ export default function ChatPage() {
     setNewMessage("");
   };
 
+  const saveNote = async () => {
+    if (!currentUser) return;
+    await set(ref(db, `notes/${currentUser.uid}`), {
+      text: myNote,
+      userId: currentUser.uid,
+      userName: currentUser.displayName,
+      userPhoto: currentUser.photoURL,
+      timestamp: Date.now()
+    });
+    setShowNoteModal(false);
+  };
+
   return (
     <div className="flex h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] font-sans">
       
-      {/* --- SIDEBAR (Desktop) --- */}
-      <aside className="hidden md:flex w-80 flex-col bg-white dark:bg-[#0D140D] border-r dark:border-green-900/30">
+      {/* --- SIDEBAR --- */}
+      <aside className={`w-full md:w-80 flex-col bg-white dark:bg-[#0D140D] border-r dark:border-green-900/30 ${targetUid ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-6 pb-2">
-          <Link href="/"><h1 className="text-xl font-bold text-green-600 dark:text-green-500 mb-6">ibung</h1></Link>
-          
-          {/* 🎯 ช่องค้นหา (Desktop) */}
-          <div className="relative group">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400 group-focus-within:text-green-500 transition-colors" />
-            <input 
-              type="text" 
-              placeholder="ค้นหาชื่อผู้ใช้งาน..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#1A241A] rounded-xl text-sm outline-none border border-transparent focus:border-green-500/30 transition-all"
-            />
+          <Link href="/"><h1 className="text-xl font-bold text-green-600 dark:text-green-500 mb-6">ibung chat</h1></Link>
+          <div className="relative group mb-4">
+            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400 group-focus-within:text-green-500" />
+            <input type="text" placeholder="ค้นหาเพื่อน..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#1A241A] rounded-xl text-sm outline-none border dark:border-transparent focus:border-green-500/30" />
           </div>
         </div>
 
+        {/* 🎯 IG Notes Bar */}
+        <div className="flex gap-4 overflow-x-auto no-scrollbar px-6 pb-4 border-b dark:border-green-900/20">
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 relative cursor-pointer" onClick={() => setShowNoteModal(true)}>
+            <div className="w-16 h-16 rounded-full border-2 border-gray-200 dark:border-green-900/30 p-1 relative">
+              <img src={currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white dark:bg-green-800 px-3 py-1 rounded-2xl text-[10px] shadow-md border border-gray-100 dark:border-green-700 max-w-[90px] truncate">
+                {allNotes.find(n => n.userId === currentUser?.uid)?.text || "ทิ้งโน้ต..."}
+              </div>
+            </div>
+            <span className="text-[10px] text-gray-400 font-bold mt-1">คุณ</span>
+          </div>
+
+          {allNotes.filter(n => n.userId !== currentUser?.uid).map((n, i) => (
+            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 relative">
+              <div className="w-16 h-16 rounded-full p-1 relative">
+                <img src={n.userPhoto} className="w-full h-full rounded-full object-cover" alt="" />
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white dark:bg-green-900 px-3 py-1 rounded-2xl text-[10px] shadow-md border border-green-500/20 max-w-[90px] truncate">
+                  {n.text}
+                </div>
+              </div>
+              <span className="text-[10px] text-gray-500 mt-1">{n.userName}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* รายชื่อเพื่อน + 🎯 จุดเขียวออนไลน์ */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {filteredUsers.length > 0 ? filteredUsers.map(user => (
-            <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${user.uid === targetUid ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'hover:bg-gray-50 dark:hover:bg-green-900/10 text-gray-600 dark:text-gray-400'}`}>
-              <img src={user.photoURL || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover" alt="" />
-              <span className="font-medium text-sm">{user.displayName}</span>
+          {filteredUsers.map(user => (
+            <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${user.uid === targetUid ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'hover:bg-gray-50 dark:hover:bg-green-900/10'}`}>
+              <div className="relative">
+                <img src={user.photoURL || "/api/placeholder/40/40"} className="w-12 h-12 rounded-full object-cover" alt="" />
+                {user.isOnline && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-[#0D140D] rounded-full" />}
+              </div>
+              <span className="font-bold text-sm">{user.displayName}</span>
             </Link>
-          )) : (
-            <p className="text-center text-xs text-gray-400 mt-10">ไม่พบผู้ใช้งานชื่อนี้</p>
-          )}
+          ))}
         </div>
       </aside>
 
       {/* --- MAIN AREA --- */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A] md:m-4 md:rounded-3xl md:border dark:border-green-900/20 overflow-hidden relative">
-        
-        {targetUid ? (
-          <>
-            <header className="px-6 py-4 flex items-center gap-3 border-b dark:border-green-900/20 bg-white/80 dark:bg-[#0D140D]/80 backdrop-blur-md z-10">
-              <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
-              <img src={targetUser?.photoURL || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full border dark:border-green-800" alt="" />
-              <div className="flex-1">
-                <h2 className="font-bold text-gray-900 dark:text-gray-100 leading-none">{targetUser?.displayName}</h2>
-                <span className="text-[10px] text-green-500 font-medium">ONLINE</span>
-              </div>
-            </header>
+      {targetUid && (
+        <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A] md:m-4 md:rounded-3xl md:border dark:border-green-900/20 overflow-hidden relative">
+          <header className="px-6 py-4 flex items-center gap-3 border-b dark:border-green-900/20 z-10">
+            <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
+            <div className="relative">
+              <img src={targetUser?.photoURL || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover" alt="" />
+            </div>
+            <div>
+              <h2 className="font-bold leading-none">{targetUser?.displayName}</h2>
+            </div>
+          </header>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/20 dark:bg-transparent">
-              {loading ? (
-                <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-green-500" /></div>
-              ) : messages.map(msg => (
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {loading ? <div className="flex justify-center"><Loader2 className="animate-spin text-green-500" /></div> : 
+              messages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] shadow-sm ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white dark:bg-[#1A241A] text-gray-800 dark:text-gray-200 border dark:border-green-900/20 rounded-tl-none'}`}>
-                    {msg.text}
+                  <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] shadow-sm ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-[#1A241A] rounded-tl-none'}`}>
+                    {/* จัดการสไตล์ข้อความที่เป็น Reply สตอรี่ */}
+                    {msg.text.startsWith("[ตอบกลับสตอรี่]:") ? (
+                      <div>
+                        <span className="text-xs opacity-70 italic block mb-1">ตอบกลับสตอรี่ของคุณ</span>
+                        {msg.text.replace("[ตอบกลับสตอรี่]: ", "")}
+                      </div>
+                    ) : (
+                      msg.text
+                    )}
                   </div>
                 </div>
               ))}
-              <div ref={scrollRef} />
-            </div>
+            <div ref={scrollRef} />
+          </div>
 
-            <footer className="p-4 bg-white dark:bg-[#0D140D] border-t dark:border-green-900/20">
-              <form onSubmit={sendMessage} className="flex items-center gap-3 bg-gray-100 dark:bg-[#1A241A] rounded-2xl px-4 py-2 border dark:border-transparent focus-within:border-green-500 transition-all">
-                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="flex-1 bg-transparent py-2 outline-none text-sm dark:text-white" />
-                <button type="submit" className="p-2 bg-green-600 text-white rounded-xl transition-transform active:scale-90"><Send className="w-4 h-4" /></button>
-              </form>
-            </footer>
-          </>
-        ) : (
-          /* 📱 หน้าเลือกเพื่อน (Mobile) */
-          <div className="flex-1 flex flex-col">
-            <div className="p-6 md:hidden">
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-green-500 mb-6 font-serif tracking-tight">ibung chat</h1>
-                {/* 🎯 ช่องค้นหา (Mobile) */}
-                <div className="relative">
-                    <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-                    <input 
-                    type="text" 
-                    placeholder="ค้นหา username เพื่อน..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 dark:bg-[#0D140D] border dark:border-green-900/30 rounded-2xl outline-none focus:ring-2 focus:ring-green-500/50 transition-all"
-                    />
-                </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 md:hidden">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 ml-2">ผู้ใช้งานทั้งหมด</p>
-                <div className="grid grid-cols-1 gap-2">
-                    {filteredUsers.map(user => (
-                    <Link href={`/chat?id=${user.uid}`} key={user.uid} className="flex items-center gap-4 p-4 bg-white dark:bg-[#0D140D] border dark:border-green-900/10 rounded-2xl active:scale-[0.98] transition-all">
-                        <img src={user.photoURL || "/api/placeholder/40/40"} className="w-12 h-12 rounded-full shadow-sm" alt="" />
-                        <span className="font-bold text-gray-700 dark:text-gray-200">{user.displayName}</span>
-                    </Link>
-                    ))}
-                </div>
-            </div>
-            {/* Empty State สำหรับ Desktop */}
-            <div className="hidden md:flex flex-1 flex-col items-center justify-center text-gray-400">
-              <div className="w-16 h-16 mb-4 rounded-full bg-gray-50 dark:bg-[#0D140D] flex items-center justify-center border dark:border-green-900/20"><User className="opacity-20" /></div>
-              <p className="text-xs">เลือกเพื่อนจากทางซ้ายเพื่อเริ่มคุย</p>
+          <footer className="p-4 bg-white dark:bg-[#0D140D] border-t dark:border-green-900/20">
+            <form onSubmit={sendMessage} className="flex gap-3 bg-gray-50 dark:bg-[#1A241A] rounded-2xl px-4 py-2">
+              <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="flex-1 bg-transparent outline-none text-sm" />
+              <button type="submit" className="p-2 bg-green-500 text-white rounded-xl"><Send className="w-4 h-4" /></button>
+            </form>
+          </footer>
+        </main>
+      )}
+
+      {/* 📱 Modal พิมพ์โน้ต */}
+      {showNoteModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs shadow-2xl">
+            <p className="text-sm font-bold mb-4">เขียนโน้ตของคุณ...</p>
+            <input maxLength={60} value={myNote} onChange={e => setMyNote(e.target.value)} placeholder="แชร์ความรู้สึกสั้นๆ..." className="w-full p-4 bg-gray-100 dark:bg-[#0D140D] rounded-2xl outline-none mb-6 text-sm" />
+            <div className="flex gap-3">
+              <button onClick={() => setShowNoteModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button>
+              <button onClick={saveNote} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">แชร์</button>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
