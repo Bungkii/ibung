@@ -1,150 +1,175 @@
 "use client";
 import { useState, useEffect } from "react";
 import { db, auth } from "@/lib/firebase";
-import { ref, onValue, query, limitToLast, push, serverTimestamp } from "firebase/database";
-import PostCard from "@/components/PostCard";
-import { Loader2, Plus, X, Send } from "lucide-react";
+import { ref, onValue, push, update } from "firebase/database";
+import { Heart, MessageCircle, Repeat, Loader2, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 
-export default function HomeFeed() {
+export default function HomePage() {
   const [posts, setPosts] = useState<any[]>([]);
-  const [stories, setStories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStory, setSelectedStory] = useState<any>(null);
-  const [replyText, setReplyText] = useState("");
-  const [viewedStories, setViewedStories] = useState<string[]>([]);
 
+  // ดึงข้อมูลโพสต์ทั้งหมดจาก Firebase
   useEffect(() => {
-    // โหลดโพสต์
-    const postsRef = query(ref(db, 'posts'), limitToLast(50));
-    onValue(postsRef, (snap) => {
-      const data = snap.val();
-      if (data) setPosts(Object.keys(data).map(k => ({ id: k, ...data[k] })).reverse());
+    const postsRef = ref(db, 'posts');
+    const unsubscribe = onValue(postsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // แปลง Object เป็น Array แล้วเรียงจากโพสต์ใหม่สุดไปเก่าสุด
+        const postsArray = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        })).sort((a, b) => b.timestamp - a.timestamp);
+        setPosts(postsArray);
+      } else {
+        setPosts([]);
+      }
       setLoading(false);
     });
 
-    // โหลดสตอรี่ (24 ชม.)
-    onValue(ref(db, 'stories'), (snap) => {
-      const data = snap.val();
-      if (data) {
-        const now = Date.now();
-        const active = Object.keys(data)
-          .map(k => ({ id: k, ...data[k] }))
-          .filter((s: any) => now - s.timestamp < 24 * 60 * 60 * 1000)
-          .reverse();
-        setStories(active);
-      }
-    });
-
-    // ดึงประวัติการดูสตอรี่จากเครื่อง
-    const savedViews = localStorage.getItem("viewedStories");
-    if (savedViews) setViewedStories(JSON.parse(savedViews));
+    return () => unsubscribe();
   }, []);
 
-  // เมื่อกดดูสตอรี่ ให้บันทึกว่าดูแล้ว (เปลี่ยนเป็นสีเทา)
-  const handleOpenStory = (story: any) => {
-    setSelectedStory(story);
-    if (!viewedStories.includes(story.id)) {
-      const newViews = [...viewedStories, story.id];
-      setViewedStories(newViews);
-      localStorage.setItem("viewedStories", JSON.stringify(newViews));
+  // 🎯 ฟังก์ชันรีโพสต์ (นำโพสต์คนอื่นมาแชร์ลงฟีดตัวเอง)
+  const handleRepost = async (post: any) => {
+    if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
+    
+    // ห้ามรีโพสต์ซ้ำของตัวเองที่เพิ่งรีโพสต์มา (กันงง)
+    if (post.reposterId === auth.currentUser.uid) {
+      return alert("คุณได้รีโพสต์ไปแล้วครับ!");
+    }
+
+    const confirmRepost = confirm("ต้องการรีโพสต์นี้ไปที่หน้าฟีดของคุณหรือไม่?");
+    if (!confirmRepost) return;
+
+    try {
+      // เอาข้อมูลโพสต์เดิม มาสร้างโพสต์ใหม่โดยแปะป้ายว่า "รีโพสต์"
+      const newPost = {
+        authorId: post.authorId,
+        authorName: post.authorName,
+        authorPhoto: post.authorPhoto,
+        imageUrl: post.imageUrl || "",
+        caption: post.caption || "",
+        reposterId: auth.currentUser.uid,
+        reposterName: auth.currentUser.displayName,
+        isRepost: true, // ป้ายกำกับว่าเป็นโพสต์ที่ถูกแชร์มา
+        timestamp: Date.now()
+      };
+
+      await push(ref(db, 'posts'), newPost);
+      alert("รีโพสต์สำเร็จ! โพสต์นี้ไปอยู่บนหน้าฟีดของคุณแล้วครับ 🚀");
+    } catch (err) {
+      console.error("Repost Error:", err);
+      alert("เกิดข้อผิดพลาดในการรีโพสต์ครับ");
     }
   };
 
-  // ส่งข้อความตอบกลับสตอรี่ (เข้าแชทส่วนตัว)
-  const handleReplyStory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim() || !auth.currentUser || !selectedStory) return;
-    
+  // ฟังก์ชันกดหัวใจ (กดไลก์)
+  const handleLike = async (postId: string, currentLikes: any = {}) => {
+    if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
     const myId = auth.currentUser.uid;
-    const targetId = selectedStory.userId;
-    if (myId === targetId) return alert("ตอบกลับสตอรี่ตัวเองไม่ได้ครับ");
+    const postRef = ref(db, `posts/${postId}/likes`);
+    
+    const newLikes = { ...currentLikes };
+    if (newLikes[myId]) {
+      newLikes[myId] = null; // เลิกไลก์
+    } else {
+      newLikes[myId] = true; // กดไลก์
+    }
+    await update(ref(db), { [`posts/${postId}/likes`]: newLikes });
+  };
 
-    // สร้าง ID ห้องแชทแบบเดียวกับหน้า Chat
-    const chatId = myId < targetId ? `${myId}_${targetId}` : `${targetId}_${myId}`;
-    
-    await push(ref(db, `chats/${chatId}`), {
-      text: `[ตอบกลับสตอรี่]: ${replyText}`,
-      senderId: myId,
-      timestamp: serverTimestamp()
-    });
-    
-    setReplyText("");
-    setSelectedStory(null);
-    alert("ส่งข้อความตอบกลับแล้ว!");
+  // แปลงเวลาให้ดูง่ายๆ (เช่น 5 นาทีที่แล้ว)
+  const timeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return "เมื่อสักครู่";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} นาทีที่แล้ว`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} ชม. ที่แล้ว`;
+    return `${Math.floor(seconds / 86400)} วันที่แล้ว`;
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* 🌈 Story Bar */}
-      <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 mb-8 items-center">
-        <Link href="/post/story" className="flex-shrink-0 flex flex-col items-center gap-2">
-          <div className="relative p-0.5 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-700">
-            <img src={auth.currentUser?.photoURL || "/api/placeholder/40/40"} className="w-14 h-14 rounded-full object-cover" alt="" />
-            <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-0.5 border-2 border-white dark:border-[#0A0F0A]"><Plus size={12} strokeWidth={4}/></div>
-          </div>
-          <span className="text-[10px] font-bold text-gray-500">สตอรี่ของคุณ</span>
+    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24">
+      
+      {/* Header โลโก้แอป */}
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0A0F0A]/80 backdrop-blur-md border-b dark:border-green-900/30 px-4 py-3 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-green-500 tracking-tight">ibung</h1>
+        <Link href="/post/story" className="p-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full font-bold text-sm">
+          + สร้างโพสต์
         </Link>
+      </header>
 
-        {stories.map((s, i) => {
-          const isViewed = viewedStories.includes(s.id);
-          return (
-            <div key={i} onClick={() => handleOpenStory(s)} className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer transition-transform active:scale-95">
-              <div className={`w-[68px] h-[68px] rounded-full p-[2px] ${isViewed ? 'bg-gray-300 dark:bg-gray-700' : 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600'}`}>
-                <div className="w-full h-full bg-white dark:bg-[#0A0F0A] rounded-full p-0.5">
-                  <img src={s.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
+      {/* Main Feed */}
+      <main className="max-w-xl mx-auto mt-4 px-4 flex flex-col gap-6">
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-green-500 w-10 h-10" /></div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">ยังไม่มีโพสต์เลย เริ่มโพสต์คนแรกสิ!</div>
+        ) : (
+          posts.map(post => (
+            <article key={post.id} className="bg-white dark:bg-[#1A241A] rounded-[2rem] shadow-sm border dark:border-green-900/20 overflow-hidden">
+              
+              {/* 🎯 ป้ายกำกับรีโพสต์ (จะโชว์ก็ต่อเมื่อเป็นโพสต์ที่ถูกแชร์มา) */}
+              {post.isRepost && (
+                <div className="flex items-center gap-2 px-6 pt-4 pb-1 text-gray-500 dark:text-gray-400 text-xs font-bold">
+                  <Repeat size={14} className="text-green-500" />
+                  <span>{post.reposterName} รีโพสต์สิ่งนี้</span>
+                </div>
+              )}
+
+              {/* ส่วนหัวของโพสต์ (รูปโปรไฟล์ + ชื่อ) */}
+              <div className={`flex items-center justify-between px-6 pb-3 ${post.isRepost ? 'pt-1' : 'pt-5'}`}>
+                <div className="flex items-center gap-3">
+                  <img src={post.authorPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-green-900/30" alt="" />
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">{post.authorName}</h3>
+                    <p className="text-xs text-gray-400">{timeAgo(post.timestamp)}</p>
+                  </div>
+                </div>
+                <button className="text-gray-400 hover:text-gray-600"><MoreHorizontal size={20} /></button>
+              </div>
+
+              {/* เนื้อหาโพสต์ (แคปชั่น + รูปภาพ) */}
+              <div className="px-6 pb-4">
+                {post.caption && <p className="text-sm text-gray-800 dark:text-gray-200 mb-3 whitespace-pre-wrap">{post.caption}</p>}
+                {post.imageUrl && (
+                  <div className="rounded-2xl overflow-hidden border dark:border-green-900/20">
+                    <img src={post.imageUrl} className="w-full object-cover max-h-[500px]" alt="Post" />
+                  </div>
+                )}
+              </div>
+
+              {/* แถบเครื่องมือ (Like, Comment, Repost) */}
+              <div className="px-4 py-3 border-t dark:border-green-900/20 flex items-center justify-between">
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleLike(post.id, post.likes)} 
+                    className={`flex items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 ${post.likes?.[auth.currentUser?.uid || ''] ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10'}`}
+                  >
+                    <Heart size={20} className={post.likes?.[auth.currentUser?.uid || ''] ? "fill-current" : ""} />
+                    <span className="text-sm font-medium">{Object.keys(post.likes || {}).length || 0}</span>
+                  </button>
+
+                  <Link href={`/post/${post.id}`} className="flex items-center gap-1.5 p-2 text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 rounded-xl transition-all active:scale-95">
+                    <MessageCircle size={20} />
+                    <span className="text-sm font-medium">คอมเมนต์</span>
+                  </Link>
+
+                  {/* 🎯 ปุ่มรีโพสต์ */}
+                  <button 
+                    onClick={() => handleRepost(post)} 
+                    className={`flex items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 ${post.reposterId === auth.currentUser?.uid ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 hover:text-green-500'}`}
+                  >
+                    <Repeat size={20} />
+                    <span className="text-sm font-medium">รีโพสต์</span>
+                  </button>
                 </div>
               </div>
-              <span className={`text-[10px] truncate w-16 text-center ${isViewed ? 'text-gray-400 font-normal' : 'font-medium'}`}>{s.userName}</span>
-            </div>
-          );
-        })}
-      </div>
 
-      {/* 📮 Feed */}
-      <div className="space-y-6">
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-green-500" /></div> : posts.map(post => <PostCard key={post.id} post={post} />)}
-      </div>
-
-      {/* 📱 Story Viewer Modal & Reply */}
-      {selectedStory && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-0 md:p-10 animate-in fade-in duration-300">
-          <button onClick={() => setSelectedStory(null)} className="absolute top-6 right-6 text-white/50 hover:text-white z-50"><X size={32}/></button>
-          
-          <div className="relative w-full max-w-md aspect-[9/16] bg-[#111] md:rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-            {/* Header สตอรี่ */}
-            <div className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-black/20 p-2 rounded-full backdrop-blur-md">
-              <img src={selectedStory.userPhoto} className="w-8 h-8 rounded-full border border-white/20 object-cover" alt="" />
-              <span className="text-white font-bold text-sm">{selectedStory.userName}</span>
-            </div>
-
-            {/* เนื้อหาสตอรี่ */}
-            <div className="flex-1 relative flex items-center justify-center">
-              {selectedStory.type === "video" ? (
-                <video src={selectedStory.url} autoPlay playsInline className="w-full h-full object-contain" onEnded={() => setSelectedStory(null)} />
-              ) : (
-                <img src={selectedStory.url} className="w-full h-full object-contain" alt="" />
-              )}
-            </div>
-
-            {/* แถบ Reply ด้านล่าง */}
-            {selectedStory.userId !== auth.currentUser?.uid && (
-              <form onSubmit={handleReplyStory} className="absolute bottom-4 left-4 right-4 flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder={`ตอบกลับ ${selectedStory.userName}...`} 
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  className="flex-1 bg-black/40 backdrop-blur-md text-white border border-white/30 rounded-full px-5 py-3 text-sm outline-none placeholder:text-white/50 focus:border-white transition-all"
-                />
-                <button type="submit" className="p-3 bg-white text-black rounded-full hover:bg-gray-200 transition-colors">
-                  <Send size={18} />
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+            </article>
+          ))
+        )}
+      </main>
     </div>
   );
 }
