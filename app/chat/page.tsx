@@ -1,12 +1,13 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, onValue, push, serverTimestamp, set, onDisconnect } from "firebase/database";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, User, Send, Loader2, Search, X } from "lucide-react";
 import Link from "next/link";
 
-export default function ChatPage() {
+// 🎯 แยกส่วนเนื้อหาแชทออกมาไว้ใน Component ย่อย
+function ChatContent() {
   const searchParams = useSearchParams();
   const targetUid = searchParams.get("id");
   const currentUser = auth.currentUser;
@@ -18,7 +19,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 🎯 States สำหรับ IG Notes
   const [myNote, setMyNote] = useState("");
   const [allNotes, setAllNotes] = useState<any[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -32,12 +32,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (!currentUser) return;
     
-    // ตั้งค่าสถานะออนไลน์ (สีเขียว)
     const myStatusRef = ref(db, `status/${currentUser.uid}`);
     set(myStatusRef, "online");
-    onDisconnect(myStatusRef).set("offline"); // ถ้าปิดเว็บให้เป็น offline
+    onDisconnect(myStatusRef).set("offline");
 
-    // โหลดรายชื่อผู้ใช้และสถานะ
     onValue(ref(db, 'users'), (snapshot) => {
       const usersData = snapshot.val();
       if (usersData) {
@@ -51,7 +49,6 @@ export default function ChatPage() {
       }
     });
 
-    // โหลด IG Notes
     onValue(ref(db, 'notes'), s => setAllNotes(s.val() ? Object.values(s.val()) : []));
   }, [currentUser]);
 
@@ -89,9 +86,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] font-sans">
-      
-      {/* --- SIDEBAR --- */}
+    <div className="flex h-[calc(100vh-60px)] md:h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] font-sans">
       <aside className={`w-full md:w-80 flex-col bg-white dark:bg-[#0D140D] border-r dark:border-green-900/30 ${targetUid ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-6 pb-2">
           <Link href="/"><h1 className="text-xl font-bold text-green-600 dark:text-green-500 mb-6">ibung chat</h1></Link>
@@ -101,7 +96,6 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* 🎯 IG Notes Bar */}
         <div className="flex gap-4 overflow-x-auto no-scrollbar px-6 pb-4 border-b dark:border-green-900/20">
           <div className="flex-shrink-0 flex flex-col items-center gap-1 relative cursor-pointer" onClick={() => setShowNoteModal(true)}>
             <div className="w-16 h-16 rounded-full border-2 border-gray-200 dark:border-green-900/30 p-1 relative">
@@ -126,7 +120,6 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* รายชื่อเพื่อน + 🎯 จุดเขียวออนไลน์ */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {filteredUsers.map(user => (
             <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${user.uid === targetUid ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'hover:bg-gray-50 dark:hover:bg-green-900/10'}`}>
@@ -140,7 +133,6 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      {/* --- MAIN AREA --- */}
       {targetUid && (
         <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A] md:m-4 md:rounded-3xl md:border dark:border-green-900/20 overflow-hidden relative">
           <header className="px-6 py-4 flex items-center gap-3 border-b dark:border-green-900/20 z-10">
@@ -158,7 +150,6 @@ export default function ChatPage() {
               messages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] shadow-sm ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-[#1A241A] rounded-tl-none'}`}>
-                    {/* จัดการสไตล์ข้อความที่เป็น Reply สตอรี่ */}
                     {msg.text.startsWith("[ตอบกลับสตอรี่]:") ? (
                       <div>
                         <span className="text-xs opacity-70 italic block mb-1">ตอบกลับสตอรี่ของคุณ</span>
@@ -182,7 +173,6 @@ export default function ChatPage() {
         </main>
       )}
 
-      {/* 📱 Modal พิมพ์โน้ต */}
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in zoom-in duration-200">
           <div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs shadow-2xl">
@@ -196,5 +186,14 @@ export default function ChatPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// 🎯 ห่อหุ้มด้วย Suspense เพื่อให้ผ่าน Build Vercel
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin text-green-500 w-8 h-8" /></div>}>
+      <ChatContent />
+    </Suspense>
   );
 }
