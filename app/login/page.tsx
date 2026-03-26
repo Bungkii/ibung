@@ -59,4 +59,4 @@ export default function LoginPage() {
             className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold flex items-center justify-center transition-colors"
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "เข้าสู่ระบบ"}
-          </button
+          </button>
