@@ -241,7 +241,7 @@ export default function HomePage() {
 
                   <Link href={`/post/${post.id}`} className="flex items-center gap-1.5 p-2.5 text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 rounded-xl transition-all active:scale-95">
                     <MessageCircle size={20} />
-                    <span className="text-sm font-bold">คอมเมนต์</span>
+                    <span className="text-sm font-bold">{post.comments ? Object.keys(post.comments).length : "คอมเมนต์"}</span>
                   </Link>
 
                   <button onClick={() => handleRepost(post)} className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.reposterId === auth.currentUser?.uid ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10 hover:text-green-500'}`}>
