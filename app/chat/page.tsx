@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, onValue, push, set, onDisconnect } from "firebase/database";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Loader2, Search, Sparkles, Plus, Users, Check } from "lucide-react";
+// 🎯 เพิ่ม Phone, Video กลับมาแล้ว!
+import { ArrowLeft, Send, Loader2, Search, Sparkles, Plus, Users, Check, Phone, Video } from "lucide-react";
 import Link from "next/link";
 
 function ChatContent() {
@@ -53,7 +54,6 @@ function ChatContent() {
       }
     });
 
-    // ดึงกลุ่มที่ตัวเองอยู่
     onValue(ref(db, 'groups'), (snapshot) => {
       const groupsData = snapshot.val();
       if (groupsData) {
@@ -122,38 +122,49 @@ function ChatContent() {
           <div className="relative mb-4"><Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" /><input type="text" placeholder="ค้นหาเพื่อน..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#1A241A] rounded-xl outline-none text-sm" /></div>
         </div>
 
-        <div className="flex gap-4 overflow-x-auto no-scrollbar px-6 pt-10 pb-4 border-b dark:border-green-900/20">
-          <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer" onClick={() => setShowGroupModal(true)}>
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-green-500 flex items-center justify-center bg-green-50 text-green-500"><Plus /></div>
-            <span className="text-[11px] font-bold text-green-500 mt-1">สร้างกลุ่ม</span>
+        {/* 🎯 แถบโน้ต: ซ่อน Scrollbar ขาวๆ และจัดระยะห่างไม่ให้ชนกัน */}
+        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden px-4 pt-12 pb-4 border-b dark:border-green-900/20" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[80px]" onClick={() => setShowGroupModal(true)}>
+            <div className="w-16 h-16 rounded-full border-2 border-dashed border-green-500 flex items-center justify-center bg-green-50 dark:bg-green-900/10 active:scale-95 transition-transform">
+              <Plus className="text-green-500" />
+            </div>
+            <span className="text-[11px] font-bold text-green-500 mt-1 truncate w-full text-center">สร้างกลุ่ม</span>
           </div>
-          <div className="flex-shrink-0 flex flex-col items-center gap-1 relative cursor-pointer" onClick={() => setShowNoteModal(true)}>
-            <div className="w-16 h-16 rounded-full p-1 relative">
+
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 relative cursor-pointer w-[80px]" onClick={() => setShowNoteModal(true)}>
+            <div className="w-16 h-16 rounded-full p-1 border-2 border-gray-200 dark:border-green-900/50">
               <img src={currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
-              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white dark:bg-green-800 py-1.5 px-4 rounded-2xl text-[11px] text-gray-800 dark:text-white shadow-lg border border-gray-100 max-w-[120px] truncate z-50">
-                {allNotes.find(n => n.userId === currentUser?.uid)?.text || "ทิ้งโน้ต..."}
-              </div>
-            </div><span className="text-[11px] text-gray-400 font-bold mt-1">คุณ</span>
+            </div>
+            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[11px] shadow-md w-max max-w-[80px] truncate z-50">
+              {allNotes.find(n => n.userId === currentUser?.uid)?.text || "+ ทิ้งโน้ต"}
+            </div>
+            <span className="text-[11px] text-gray-400 font-bold mt-1 truncate w-full text-center">คุณ</span>
           </div>
+
           {allNotes.filter(n => n.userId !== currentUser?.uid).map((n, i) => (
-            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 relative">
-              <div className="w-16 h-16 rounded-full p-1 relative"><img src={n.userPhoto} className="w-full h-full rounded-full object-cover" alt="" />
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white dark:bg-green-900 py-1.5 px-4 rounded-2xl text-[11px] shadow-lg max-w-[120px] truncate z-50">{n.text}</div>
-              </div><span className="text-[11px] text-gray-500 mt-1">{n.userName}</span>
+            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 relative w-[80px]">
+              <div className="w-16 h-16 rounded-full p-1 border-2 border-transparent dark:border-green-900/30">
+                <img src={n.userPhoto} className="w-full h-full rounded-full object-cover" alt="" />
+              </div>
+              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[11px] shadow-md w-max max-w-[80px] truncate z-50">
+                {n.text}
+              </div>
+              <span className="text-[11px] text-gray-500 mt-1 truncate w-full text-center">{n.userName}</span>
             </div>
           ))}
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
           {myGroups.map(group => (
-            <Link href={`/chat?groupId=${group.id}`} key={group.id} className={`flex items-center gap-3 p-2.5 rounded-2xl ${groupId === group.id ? 'bg-green-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-green-900/10'}`}>
+            <Link href={`/chat?groupId=${group.id}`} key={group.id} className={`flex items-center gap-3 p-2.5 rounded-2xl ${groupId === group.id ? 'bg-green-500 text-white shadow-md' : 'hover:bg-gray-100 dark:hover:bg-green-900/10'}`}>
               <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-green-600" /></div>
               <span className={`font-bold text-sm truncate ${groupId === group.id ? 'text-white' : ''}`}>{group.name}</span>
             </Link>
           ))}
           {filteredUsers.map(user => (
-            <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-2.5 rounded-2xl ${user.uid === targetUid ? 'bg-green-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-green-900/10'}`}>
-              <div className="relative flex-shrink-0"><img src={user.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" />{user.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}</div>
+            <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-2.5 rounded-2xl ${user.uid === targetUid ? 'bg-green-500 text-white shadow-md' : 'hover:bg-gray-100 dark:hover:bg-green-900/10'}`}>
+              <div className="relative flex-shrink-0"><img src={user.photoURL} className="w-10 h-10 rounded-full object-cover border dark:border-green-900/30" alt="" />{user.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-[#0D140D] rounded-full" />}</div>
               <div className="flex flex-col min-w-0"><span className={`font-bold text-sm truncate ${user.uid === targetUid ? 'text-white' : ''}`}>{user.displayName}</span><span className={`text-[10px] ${user.uid === targetUid ? 'text-green-100' : 'text-gray-400'}`}>{user.isOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></div>
             </Link>
           ))}
@@ -162,10 +173,31 @@ function ChatContent() {
 
       {(targetUid || groupId) && (
         <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A]">
-          <header className="px-6 py-4 flex items-center gap-3 border-b dark:border-green-900/20 bg-white/80 sticky top-0 z-10">
-            <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5" /></Link>
-            {targetUser ? <><img src={targetUser?.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" /><h2 className="font-bold">{targetUser?.displayName}</h2></> : <><div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center"><Users className="w-5 h-5 text-green-600" /></div><h2 className="font-bold">{targetGroup?.name}</h2></>}
+          
+          {/* 🎯 Header แชท: คืนชีพปุ่ม โทร & วิดีโอคอล แล้ว! */}
+          <header className="px-6 py-4 flex items-center justify-between border-b dark:border-green-900/20 bg-white/80 dark:bg-[#0A0F0A]/80 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
+              {targetUser ? (
+                <><img src={targetUser?.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" /><h2 className="font-bold">{targetUser?.displayName}</h2></>
+              ) : (
+                <><div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center"><Users className="w-5 h-5 text-green-600" /></div><h2 className="font-bold">{targetGroup?.name}</h2></>
+              )}
+            </div>
+            
+            {/* ปุ่มโทร / วิดีโอ (แสดงเฉพาะตอนแชทเดี่ยว) */}
+            {targetUser && (
+              <div className="flex items-center gap-5 text-green-600 dark:text-green-500">
+                <button onClick={() => alert("ระบบโทรเสียงกำลังพัฒนาก๊าบ!")} className="hover:opacity-70 transition-opacity">
+                  <Phone className="w-5 h-5" />
+                </button>
+                <button onClick={() => alert("ระบบวิดีโอคอลกำลังพัฒนาก๊าบ!")} className="hover:opacity-70 transition-opacity">
+                  <Video className="w-6 h-6" />
+                </button>
+              </div>
+            )}
           </header>
+
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.map(msg => (
               <div key={msg.id} className={`flex flex-col ${msg.senderId === currentUser?.uid ? 'items-end' : 'items-start'}`}>
@@ -182,11 +214,11 @@ function ChatContent() {
       )}
 
       {showGroupModal && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-sm"><h2 className="text-xl font-bold mb-6">สร้างกลุ่มใหม่</h2><input placeholder="ชื่อกลุ่ม..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl outline-none mb-4 text-sm" /><div className="max-h-48 overflow-y-auto mb-6 space-y-2">{allUsers.map(u => (<div key={u.uid} onClick={() => setSelectedMembers(p => p.includes(u.uid) ? p.filter(id => id !== u.uid) : [...p, u.uid])} className="flex items-center gap-3 p-2 rounded-xl cursor-pointer hover:bg-gray-50"><img src={u.photoURL} className="w-8 h-8 rounded-full" alt="" /><span className="text-sm flex-1">{u.displayName}</span>{selectedMembers.includes(u.uid) && <Check className="w-4 h-4 text-green-500" />}</div>))}</div><div className="flex gap-3"><button onClick={() => setShowGroupModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={createGroup} disabled={!groupName || selectedMembers.length === 0} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">สร้างเลย</button></div></div></div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-sm shadow-2xl"><h2 className="text-xl font-bold mb-6 text-green-600">สร้างกลุ่มใหม่</h2><input placeholder="ชื่อกลุ่ม..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full p-4 bg-gray-50 dark:bg-[#0D140D] rounded-2xl outline-none mb-4 text-sm" /><p className="text-xs font-bold text-gray-400 mb-2">เลือกสมาชิก ({selectedMembers.length})</p><div className="max-h-48 overflow-y-auto mb-6 space-y-2 pr-2">{allUsers.map(u => (<div key={u.uid} onClick={() => setSelectedMembers(p => p.includes(u.uid) ? p.filter(id => id !== u.uid) : [...p, u.uid])} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${selectedMembers.includes(u.uid) ? 'bg-green-50 dark:bg-green-900/20' : ''}`}><img src={u.photoURL} className="w-8 h-8 rounded-full object-cover" alt="" /><span className="text-sm flex-1">{u.displayName}</span>{selectedMembers.includes(u.uid) && <Check className="w-4 h-4 text-green-500" />}</div>))}</div><div className="flex gap-3"><button onClick={() => setShowGroupModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={createGroup} disabled={!groupName || selectedMembers.length === 0} className="flex-1 py-3 bg-green-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold">สร้างเลย</button></div></div></div>
       )}
 
       {showNoteModal && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs"><p className="text-sm font-bold mb-4">เขียนโน้ต...</p><input maxLength={60} value={myNote} onChange={e => setMyNote(e.target.value)} placeholder="คิดอะไรอยู่?" className="w-full p-4 bg-gray-100 rounded-2xl outline-none mb-6 text-sm" /><div className="flex gap-3"><button onClick={() => setShowNoteModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={saveNote} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">แชร์</button></div></div></div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs shadow-2xl"><p className="text-sm font-bold mb-4">เขียนโน้ตแชร์ความรู้สึก...</p><input maxLength={60} value={myNote} onChange={e => setMyNote(e.target.value)} placeholder="กำลังทำอะไรอยู่?" className="w-full p-4 bg-gray-100 dark:bg-[#0D140D] rounded-2xl outline-none mb-6 text-sm" /><div className="flex gap-3"><button onClick={() => setShowNoteModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={saveNote} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">แชร์</button></div></div></div>
       )}
     </div>
   );
