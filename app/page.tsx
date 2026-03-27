@@ -11,8 +11,19 @@ export default function HomePage() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [loadingStories, setLoadingStories] = useState(true);
   
+  // 🎯 State สำหรับจดจำสตอรี่ที่ดูแล้ว
+  const [viewedStories, setViewedStories] = useState<string[]>([]);
+  
   const [currentStoryIndex, setCurrentStoryIndex] = useState<number | null>(null);
   const activeStory = currentStoryIndex !== null ? stories[currentStoryIndex] : null;
+
+  // โหลดประวัติการดูสตอรี่จากเครื่อง
+  useEffect(() => {
+    const storedViews = localStorage.getItem('ibung_viewed_stories');
+    if (storedViews) {
+      setViewedStories(JSON.parse(storedViews));
+    }
+  }, []);
 
   useEffect(() => {
     const postsRef = ref(db, 'posts');
@@ -54,6 +65,16 @@ export default function HomePage() {
     });
     return () => unsubscribe();
   }, []);
+
+  // 🎯 ฟังก์ชันบันทึกการดูสตอรี่
+  const handleStoryClick = (index: number, storyId: string) => {
+    setCurrentStoryIndex(index);
+    if (!viewedStories.includes(storyId)) {
+      const updatedViews = [...viewedStories, storyId];
+      setViewedStories(updatedViews);
+      localStorage.setItem('ibung_viewed_stories', JSON.stringify(updatedViews));
+    }
+  };
 
   const handleRepost = async (post: any) => {
     if (!auth.currentUser) return alert("กรุณาล็อกอินก่อนครับ!");
@@ -102,7 +123,8 @@ export default function HomePage() {
   const handleNextStory = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (currentStoryIndex !== null && currentStoryIndex < stories.length - 1) {
-      setCurrentStoryIndex(currentStoryIndex + 1);
+      const nextIndex = currentStoryIndex + 1;
+      handleStoryClick(nextIndex, stories[nextIndex].id);
     } else {
       setCurrentStoryIndex(null);
     }
@@ -111,7 +133,8 @@ export default function HomePage() {
   const handlePrevStory = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (currentStoryIndex !== null && currentStoryIndex > 0) {
-      setCurrentStoryIndex(currentStoryIndex - 1);
+      const prevIndex = currentStoryIndex - 1;
+      handleStoryClick(prevIndex, stories[prevIndex].id);
     } else {
       setCurrentStoryIndex(null);
     }
@@ -120,7 +143,6 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0F0A] pb-24 font-sans antialiased text-slate-900 dark:text-slate-100">
       
-      {/* 🎯 Header แถบบน */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0A0F0A]/90 backdrop-blur-md border-b dark:border-green-900/30 px-5 py-3 flex items-center h-[60px] relative">
         <div className="absolute left-1/2 -translate-x-1/2">
           <h1 className="text-2xl font-bold text-green-500 tracking-tighter">ibung</h1>
@@ -132,61 +154,56 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 🎯 สตอรี่บาร์ (ซ่อนแท่ง Scrollbar สีขาว) */}
-      <div className="bg-white dark:bg-[#1A241A] border-b dark:border-green-900/20 py-4 mb-2">
-        <div className="flex gap-4 overflow-x-auto px-5 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          
-          {/* ปุ่มเพิ่มสตอรี่ของคุณ */}
-          <Link href="/post/story" className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[72px] group">
-            <div className="relative w-16 h-16 rounded-full p-1 border-2 border-dashed border-gray-300 dark:border-green-800 flex items-center justify-center group-hover:border-green-500 transition-colors">
-              <img src={auth.currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover opacity-80" alt="" />
-              <div className="absolute bottom-0 right-0 bg-green-500 text-white rounded-full p-1 border-2 border-white dark:border-[#1A241A]">
-                <Plus size={14} />
-              </div>
+      <div className="flex gap-4 overflow-x-auto no-scrollbar px-5 py-5 bg-white dark:bg-[#0D140D] border-b dark:border-green-900/20">
+        <Link href="/post/story" className="flex-shrink-0 flex flex-col items-center gap-1.5 group">
+          <div className="relative w-16 h-16 rounded-full p-1 border-2 border-dashed border-gray-300 dark:border-green-800 flex items-center justify-center group-hover:border-green-500 transition-colors">
+            <img src={auth.currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
+            <div className="absolute bottom-0 right-0 bg-green-500 text-white rounded-full p-1 border-2 border-white dark:border-[#0D140D]">
+              <Plus size={14} />
             </div>
-            <span className="text-[11px] text-gray-400 group-hover:text-green-500 font-bold w-full text-center truncate">สตอรี่</span>
-          </Link>
+          </div>
+          <span className="text-[11px] text-gray-400 group-hover:text-green-500 font-bold">สตอรี่</span>
+        </Link>
 
-          {loadingStories ? (
-            <div className="flex gap-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[72px] animate-pulse">
-                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-green-900/20" />
-                  <div className="w-12 h-2.5 bg-gray-100 dark:bg-green-900/20 rounded-full" />
+        {loadingStories ? (
+          <div className="flex gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1.5 animate-pulse">
+                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-green-900/20" />
+                <div className="w-12 h-2.5 bg-gray-100 dark:bg-green-900/20 rounded-full" />
+              </div>
+            ))}
+          </div>
+        ) : stories.length === 0 ? (
+          <div className="flex items-center text-xs text-gray-400 font-bold px-2 pt-5">ยังไม่มีสตอรี่ใหม่...</div>
+        ) : (
+          stories.map((story, i) => {
+            // 🎯 เช็คว่าดูไปหรือยัง ถ้าดูแล้วจะเปลี่ยนสี ring เป็นสีเทา
+            const isViewed = viewedStories.includes(story.id);
+
+            return (
+              <div key={i} onClick={() => handleStoryClick(i, story.id)} className="flex-shrink-0 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
+                <div className={`w-16 h-16 rounded-full p-1 ring-2 ${isViewed ? 'ring-gray-300 dark:ring-gray-700' : 'ring-green-500'}`}>
+                  <img src={story.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
                 </div>
-              ))}
-            </div>
-          ) : stories.length === 0 ? (
-             <div className="flex items-center text-xs text-gray-400 font-bold px-2">ยังไม่มีสตอรี่ใหม่...</div>
-          ) : (
-            stories.map((story, i) => (
-              <div key={i} onClick={() => setCurrentStoryIndex(i)} className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[72px] cursor-pointer hover:opacity-80 transition-opacity">
-                {/* วงแหวนสตอรี่สีเขียวสวยๆ */}
-                <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-green-400 to-green-600 active:scale-95 transition-transform">
-                  <div className="w-full h-full rounded-full border-2 border-white dark:border-[#1A241A] overflow-hidden">
-                    <img src={story.userPhoto || "/api/placeholder/40/40"} className="w-full h-full object-cover" alt="" />
-                  </div>
-                </div>
-                <span className="text-[11px] text-gray-500 w-full truncate text-center font-medium">
-                  {story.userId === auth.currentUser?.uid ? 'คุณ' : story.userName}
+                <span className={`text-[11px] w-16 truncate text-center ${isViewed ? 'text-gray-400 font-normal' : 'text-gray-500 font-bold'}`}>
+                  {story.userName}
                 </span>
               </div>
-            ))
-          )}
-        </div>
+            );
+          })
+        )}
       </div>
 
-      {/* 🎯 หน้าฟีดโพสต์ */}
-      <main className="max-w-xl mx-auto md:mt-4 px-0 md:px-4 flex flex-col gap-2 md:gap-6">
+      <main className="max-w-xl mx-auto mt-6 px-4 flex flex-col gap-6">
         {loadingPosts ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-green-500 w-10 h-10" /></div>
         ) : posts.length === 0 ? (
           <div className="text-center py-20 text-gray-400">ยังไม่มีโพสต์เลย เริ่มโพสต์คนแรกสิ!</div>
         ) : (
           posts.map(post => (
-            <article key={post.id} className="bg-white dark:bg-[#1A241A] md:rounded-[2rem] border-y md:border dark:border-green-900/20 shadow-sm overflow-hidden animate-in fade-in duration-300">
+            <article key={post.id} className="bg-white dark:bg-[#1A241A] rounded-[2rem] shadow-sm border dark:border-green-900/20 overflow-hidden animate-in fade-in duration-300">
               
-              {/* แถบรีโพสต์ */}
               {post.isRepost && (
                 <div className="flex items-center gap-2 px-6 pt-4 pb-1 text-gray-500 dark:text-gray-400 text-xs font-bold">
                   <Repeat size={14} className="text-green-500" />
@@ -194,10 +211,10 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* 🎯 หัวโพสต์: เปลี่ยนเป็น Link เพื่อกดดูโปรไฟล์เพื่อนได้! */}
               <div className={`flex items-center justify-between px-6 pb-3 ${post.isRepost ? 'pt-1' : 'pt-5'}`}>
+                {/* 🎯 กดที่รูป/ชื่อตรงนี้ จะวิ่งไปหน้าโปรไฟล์คนโพสต์ */}
                 <Link href={`/profile/${post.authorId}`} className="flex items-center gap-3 group">
-                  <img src={post.authorPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-green-900/30" alt="" />
+                  <img src={post.authorPhoto || "/api/placeholder/40/40"} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-green-900/30 group-hover:opacity-80 transition-opacity" alt="" />
                   <div>
                     <h3 className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-green-500 transition-colors">{post.authorName}</h3>
                     <p className="text-xs text-gray-400">{timeAgo(post.timestamp)}</p>
@@ -206,17 +223,15 @@ export default function HomePage() {
                 <button className="text-gray-400 hover:text-gray-600 active:scale-90 transition-all"><MoreHorizontal size={20} /></button>
               </div>
 
-              {/* เนื้อหาและรูปภาพ */}
               <div className="px-6 pb-4">
                 {post.caption && <p className="text-sm text-gray-800 dark:text-gray-200 mb-3 whitespace-pre-wrap">{post.caption}</p>}
                 {post.imageUrl && (
-                  <div className="rounded-2xl overflow-hidden border dark:border-green-900/20 bg-gray-100 dark:bg-[#0D140D]">
-                    <img src={post.imageUrl} className="w-full object-cover max-h-[500px]" alt="Post" loading="lazy" />
+                  <div className="rounded-2xl overflow-hidden border dark:border-green-900/20">
+                    <img src={post.imageUrl} className="w-full object-cover max-h-[500px]" alt="Post" />
                   </div>
                 )}
               </div>
 
-              {/* 🎯 ปุ่มกดไลก์ คอมเมนต์ รีโพสต์ (เชื่อมระบบเดิมของพี่เป๊ะๆ) */}
               <div className="px-4 py-3 border-t dark:border-green-900/20 flex items-center justify-between">
                 <div className="flex gap-2">
                   <button onClick={() => handleLike(post.id, post.likes)} className={`flex items-center gap-1.5 p-2.5 rounded-xl transition-all active:scale-95 ${post.likes?.[auth.currentUser?.uid || ''] ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-green-900/10'}`}>
@@ -240,7 +255,6 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* 🎯 Story Viewer Modal (ระบบดูสตอรี่เต็มจอของเดิม เอาไว้เหมือนเดิมเป๊ะ!) */}
       {activeStory && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-200">
           
@@ -252,18 +266,27 @@ export default function HomePage() {
                 <p className="text-gray-300 text-xs">{timeAgo(activeStory.timestamp)}</p>
               </div>
             </div>
-            <button onClick={() => setCurrentStoryIndex(null)} className="p-2 text-white hover:bg-white/20 rounded-full transition-colors pointer-events-auto">
+            <button 
+              onClick={() => setCurrentStoryIndex(null)} 
+              className="p-2 text-white hover:bg-white/20 rounded-full transition-colors pointer-events-auto"
+            >
               <X size={24} />
             </button>
           </div>
 
           <div className="flex-1 relative flex items-center justify-center">
+            
             <div className="absolute top-0 left-0 w-1/2 h-full z-20 cursor-pointer" onClick={handlePrevStory} />
             <div className="absolute top-0 right-0 w-1/2 h-full z-20 cursor-pointer" onClick={handleNextStory} />
 
             <div className="relative z-10 p-4 w-full h-full flex items-center justify-center pointer-events-none">
+              
               {activeStory.url ? (
-                <img src={activeStory.url} className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" alt="Story Content" />
+                <img 
+                  src={activeStory.url} 
+                  className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" 
+                  alt="Story Content" 
+                />
               ) : (activeStory.caption || activeStory.text) ? (
                 <div className="w-full max-w-sm aspect-[9/16] bg-gradient-to-br from-green-500 to-emerald-700 rounded-3xl flex items-center justify-center p-8 text-center shadow-2xl">
                   <p className="text-white text-2xl font-bold leading-relaxed drop-shadow-md">
@@ -276,6 +299,7 @@ export default function HomePage() {
                  </div>
               )}
             </div>
+
           </div>
         </div>
       )}
