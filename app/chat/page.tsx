@@ -94,15 +94,17 @@ function ChatContent() {
     }
   }, [currentUser, targetUid, groupId]);
 
+  // 🎯 ดึงข้อมูล GIF (ใช้ API Key ใหม่ของพี่ ibung!)
   useEffect(() => {
     if (showGiphy) {
       const fetchGifs = async () => {
         const query = giphySearch.trim() || "trending";
         try {
-          const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=pLURtkhVrGQ5u9xI3HO2fB8Lal8e3w45&q=${query}&limit=15`);
+          // 🔥 ใส่ Key ของพี่ตรงนี้เรียบร้อยแล้ว
+          const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=9ugBrU9i1uJi5LhXKJFtxbVb0bbpHmQV&q=${query}&limit=20`);
           const { data } = await res.json();
           setGifs(data || []);
-        } catch (error) { console.error(error); }
+        } catch (error) { console.error("Giphy API Error:", error); }
       };
       const debounce = setTimeout(() => fetchGifs(), 500);
       return () => clearTimeout(debounce);
@@ -121,7 +123,6 @@ function ChatContent() {
     }
   };
 
-  // 🎯 ระบบส่งรูปแบบฝากลิงก์ ImgBB (เทพจัด)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
@@ -210,10 +211,10 @@ function ChatContent() {
     const callLink = `/call/${roomCallId}?type=${type}&isGroup=${isGroup}`;
 
     if (targetUid) {
-      await push(ref(db, `chats/${roomCallId}`), { text: type === 'video' ? 'วิดีโอคอลหาคุณ...' : 'โทรด้วยเสียงหาคุณ...', senderId: currentUser.uid, timestamp: Date.now(), isCall: true, callType: type, callLink });
+      await push(ref(db, `chats/${roomCallId}`), { text: type === 'video' ? 'วิดีโอคอลหาคุณ..' : 'โทรด้วยเสียงหาคุณ..', senderId: currentUser.uid, timestamp: Date.now(), isCall: true, callType: type, callLink });
       await push(ref(db, `notifications/${targetUid}`), { senderName: currentUser.displayName, text: `กำลังโทรหาคุณ...`, timestamp: Date.now() });
     } else if (groupId) {
-      await push(ref(db, `groupChats/${groupId}`), { text: type === 'video' ? 'วิดีโอคอลกลุ่ม...' : 'โทรด้วยเสียงกลุ่ม...', senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now(), isCall: true, callType: type, callLink });
+      await push(ref(db, `groupChats/${groupId}`), { text: type === 'video' ? 'วิดีโอคอลกลุ่ม..' : 'โทรด้วยเสียงกลุ่ม..', senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now(), isCall: true, callType: type, callLink });
     }
     router.push(callLink);
   };
@@ -248,7 +249,6 @@ function ChatContent() {
           <div className="relative mb-4"><Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" /><input type="text" placeholder="ค้นหาเพื่อน..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#1A241A] rounded-xl outline-none text-sm" /></div>
         </div>
 
-        {/* 🎯 แถบ Note (เพิ่ม pt-12 พื้นที่ด้านบน โน้ตจะได้ไม่โดนตัด) */}
         <div className="flex gap-4 overflow-x-auto px-4 pt-12 pb-4 border-b dark:border-green-900/20 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[60px]" onClick={() => setShowGroupModal(true)}>
             <div className="w-14 h-14 rounded-full border-2 border-dashed border-green-500 flex items-center justify-center bg-green-50 text-green-500"><Plus size={20} /></div>
@@ -257,21 +257,19 @@ function ChatContent() {
 
           <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[60px] relative" onClick={() => setShowNoteModal(true)}>
             <div className="w-14 h-14 rounded-full p-0.5 border-2 border-green-500"><img src={currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" /></div>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[10px] shadow-md w-max max-w-[80px] truncate z-50">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] text-gray-900 dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[10px] shadow-md w-max max-w-[80px] truncate z-50">
               {allNotes.find(n => n.userId === currentUser?.uid)?.text || "+ ทิ้งโน้ต"}
             </div>
             <span className="text-[10px] text-gray-400 font-bold mt-1 w-full text-center truncate">คุณ</span>
           </div>
 
-          {/* 🎯 โน้ตเพื่อนๆ (ที่ผมเผลอลบไป รอบนี้เอาโค้ดกล่องกลับมาให้แล้วครับ!) */}
           {allNotes.filter(n => n.userId !== currentUser?.uid).map((n, i) => (
             <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 w-[60px] relative">
               <div className="w-14 h-14 rounded-full p-0.5 border-2 border-transparent dark:border-green-900/30">
                 <img src={n.userPhoto || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
               </div>
-              {/* 💥 นี่เลย! บรรทัดที่ผมทำหาย กล่องโน้ตของเพื่อน กลับมาแล้ว!! */}
               {n.text && (
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[10px] shadow-md w-max max-w-[80px] truncate z-50">
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] text-gray-900 dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[10px] shadow-md w-max max-w-[80px] truncate z-50">
                   {n.text}
                 </div>
               )}
@@ -320,18 +318,15 @@ function ChatContent() {
                 {groupId && msg.senderId !== currentUser?.uid && <span className="text-[10px] text-gray-400 ml-2 mb-1">{msg.senderName}</span>}
                 
                 {msg.isCall ? (
-                  <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] flex flex-col gap-3 shadow-md ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white border rounded-tl-none'}`}>
+                  <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] flex flex-col gap-3 shadow-md ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white dark:bg-[#1A241A] text-gray-900 dark:text-gray-100 border dark:border-green-900/30 rounded-tl-none'}`}>
                     <div className="flex items-center gap-2 font-bold">{msg.callType === 'video' ? <Video size={18} /> : <Phone size={18} />}{msg.text}</div>
                     {msg.senderId !== currentUser?.uid && (
-                      <Link href={msg.callLink} className="bg-green-500 text-white text-center py-2 px-6 rounded-xl font-bold animate-pulse">📞 กดเข้าร่วม</Link>
+                      <Link href={msg.callLink} className="bg-green-500 hover:bg-green-400 text-white text-center py-2 px-6 rounded-xl font-bold animate-pulse shadow-md transition-colors">📞 กดเข้าร่วมการโทร</Link>
                     )}
                   </div>
                 ) : (
-                  <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-gray-100 rounded-tl-none'}`}>
-                    
-                    {/* 🎯 แสดงผลรูปภาพจาก ImgBB */}
+                  <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none shadow-md' : 'bg-gray-100 text-gray-900 dark:bg-[#1A241A] dark:text-gray-100 rounded-tl-none shadow-sm'}`}>
                     {msg.type === 'image' && <img src={msg.url} className="rounded-lg max-w-[200px] md:max-w-[300px]" alt="uploaded" />}
-                    
                     {msg.type === 'gif' && <img src={msg.url} className="rounded-lg max-w-[200px]" alt="gif" />}
                     {msg.type === 'voice' && (
                       <audio controls className="w-[200px] h-[40px] outline-none"><source src={msg.url} /></audio>
@@ -344,14 +339,14 @@ function ChatContent() {
             <div ref={scrollRef} />
           </div>
 
-          <footer className="p-4 bg-white border-t relative">
+          <footer className="p-4 bg-white dark:bg-[#0D140D] border-t dark:border-green-900/20 relative">
             {showGiphy && (
-              <div className="absolute bottom-[80px] left-4 right-4 md:w-80 bg-white p-4 rounded-3xl shadow-2xl border z-50">
+              <div className="absolute bottom-[80px] left-4 right-4 md:w-80 bg-white dark:bg-[#1A241A] p-4 rounded-3xl shadow-2xl border dark:border-green-900/30 z-50">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="font-bold text-sm">ส่ง GIF</span>
-                  <button onClick={() => setShowGiphy(false)}><X size={18} className="text-gray-400" /></button>
+                  <span className="font-bold text-sm text-gray-900 dark:text-white">ส่ง GIF</span>
+                  <button onClick={() => setShowGiphy(false)}><X size={18} className="text-gray-400 hover:text-red-500" /></button>
                 </div>
-                <input type="text" placeholder="ค้นหา GIF..." className="w-full p-3 rounded-xl bg-gray-100 mb-3 outline-none text-sm" onChange={e => setGiphySearch(e.target.value)} />
+                <input type="text" placeholder="ค้นหา GIF..." className="w-full p-3 rounded-xl bg-gray-100 dark:bg-[#0D140D] text-gray-900 dark:text-white mb-3 outline-none text-sm" onChange={e => setGiphySearch(e.target.value)} />
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                   {gifs.length > 0 ? gifs.map(g => (
                     <img key={g.id} src={g.images.fixed_height_small.url} className="h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 active:scale-95 transition-all" onClick={() => sendGif(g.images.fixed_height.url)} alt="gif" />
@@ -362,9 +357,7 @@ function ChatContent() {
               </div>
             )}
 
-            <div className="flex gap-3 bg-gray-50 rounded-full px-4 py-2 items-center">
-              
-              {/* 🎯 ปุ่มอัปโหลดรูป (ImgBB) */}
+            <div className="flex gap-3 bg-gray-50 dark:bg-[#1A241A] rounded-full px-4 py-2 items-center">
               <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
               <button onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-green-500 transition-colors relative">
                 {isUploadingImg ? <Loader2 size={22} className="animate-spin text-green-500" /> : <ImageIcon size={22} />}
@@ -373,11 +366,11 @@ function ChatContent() {
               <button onClick={() => setShowGiphy(!showGiphy)} className={`transition-colors ${showGiphy ? 'text-green-500' : 'text-gray-400 hover:text-green-500'}`}><Smile size={22} /></button>
               
               <form onSubmit={sendMessage} className="flex-1">
-                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="w-full bg-transparent outline-none text-sm" />
+                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="w-full bg-transparent text-gray-900 dark:text-white outline-none text-sm" />
               </form>
               
               {isRecording ? (
-                <button onClick={stopRecording} className="text-red-500 animate-pulse bg-red-100 p-2 rounded-full"><Square size={16} fill="currentColor" /></button>
+                <button onClick={stopRecording} className="text-red-500 animate-pulse bg-red-100 dark:bg-red-900/30 p-2 rounded-full"><Square size={16} fill="currentColor" /></button>
               ) : (
                 <button onClick={startRecording} className="text-gray-400 hover:text-green-500 p-2"><Mic size={20} /></button>
               )}
@@ -389,11 +382,11 @@ function ChatContent() {
       )}
 
       {showGroupModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-sm shadow-2xl"><h2 className="text-xl font-bold mb-6 text-green-600">สร้างกลุ่มใหม่</h2><input placeholder="ชื่อกลุ่ม..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full p-4 bg-gray-50 dark:bg-[#0D140D] rounded-2xl outline-none mb-4 text-sm" /><p className="text-xs font-bold text-gray-400 mb-2">เลือกสมาชิก ({selectedMembers.length})</p><div className="max-h-48 overflow-y-auto mb-6 space-y-2 pr-2">{allUsers.map(u => (<div key={u.uid} onClick={() => setSelectedMembers(p => p.includes(u.uid) ? p.filter(id => id !== u.uid) : [...p, u.uid])} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${selectedMembers.includes(u.uid) ? 'bg-green-50 dark:bg-green-900/20' : ''}`}><img src={u.photoURL} className="w-8 h-8 rounded-full object-cover" alt="" /><span className="text-sm flex-1">{u.displayName}</span>{selectedMembers.includes(u.uid) && <Check className="w-4 h-4 text-green-500" />}</div>))}</div><div className="flex gap-3"><button onClick={() => setShowGroupModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={createGroup} disabled={!groupName || selectedMembers.length === 0} className="flex-1 py-3 bg-green-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold">สร้างเลย</button></div></div></div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-sm shadow-2xl"><h2 className="text-xl font-bold mb-6 text-green-600">สร้างกลุ่มใหม่</h2><input placeholder="ชื่อกลุ่ม..." value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full p-4 bg-gray-50 dark:bg-[#0D140D] text-gray-900 dark:text-white rounded-2xl outline-none mb-4 text-sm" /><p className="text-xs font-bold text-gray-400 mb-2">เลือกสมาชิก ({selectedMembers.length})</p><div className="max-h-48 overflow-y-auto mb-6 space-y-2 pr-2">{allUsers.map(u => (<div key={u.uid} onClick={() => setSelectedMembers(p => p.includes(u.uid) ? p.filter(id => id !== u.uid) : [...p, u.uid])} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${selectedMembers.includes(u.uid) ? 'bg-green-50 dark:bg-green-900/20' : ''}`}><img src={u.photoURL} className="w-8 h-8 rounded-full object-cover" alt="" /><span className="text-sm flex-1 text-gray-900 dark:text-white">{u.displayName}</span>{selectedMembers.includes(u.uid) && <Check className="w-4 h-4 text-green-500" />}</div>))}</div><div className="flex gap-3"><button onClick={() => setShowGroupModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={createGroup} disabled={!groupName || selectedMembers.length === 0} className="flex-1 py-3 bg-green-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold">สร้างเลย</button></div></div></div>
       )}
 
       {showNoteModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs shadow-2xl"><p className="text-sm font-bold mb-4">เขียนโน้ตแชร์ความรู้สึก...</p><input maxLength={60} value={myNote} onChange={e => setMyNote(e.target.value)} placeholder="กำลังทำอะไรอยู่?" className="w-full p-4 bg-gray-100 dark:bg-[#0D140D] rounded-2xl outline-none mb-6 text-sm" /><div className="flex gap-3"><button onClick={() => setShowNoteModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={saveNote} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">แชร์</button></div></div></div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"><div className="bg-white dark:bg-[#1A241A] rounded-[2rem] p-8 w-full max-w-xs shadow-2xl"><p className="text-sm font-bold text-gray-900 dark:text-white mb-4">เขียนโน้ตแชร์ความรู้สึก...</p><input maxLength={60} value={myNote} onChange={e => setMyNote(e.target.value)} placeholder="กำลังทำอะไรอยู่?" className="w-full p-4 bg-gray-100 dark:bg-[#0D140D] text-gray-900 dark:text-white rounded-2xl outline-none mb-6 text-sm" /><div className="flex gap-3"><button onClick={() => setShowNoteModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500">ยกเลิก</button><button onClick={saveNote} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold">แชร์</button></div></div></div>
       )}
     </div>
   );
