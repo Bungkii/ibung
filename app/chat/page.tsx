@@ -312,14 +312,20 @@ function ChatContent() {
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.map(msg => (
-              <div key={msg.id} className={`flex flex-col ${msg.senderId === currentUser?.uid ? 'items-end' : 'items-start'}`}>
-                {groupId && msg.senderId !== currentUser?.uid && <span className="text-[10px] text-gray-400 ml-2 mb-1">{msg.senderName}</span>}
+              // 🎯 ดักจับประเภท call_end ให้อยู่ตรงกลางจอ
+              <div key={msg.id} className={`flex flex-col ${msg.type === 'call_end' ? 'items-center' : msg.senderId === currentUser?.uid ? 'items-end' : 'items-start'}`}>
+                {groupId && msg.senderId !== currentUser?.uid && msg.type !== 'call_end' && <span className="text-[10px] text-gray-400 ml-2 mb-1">{msg.senderName}</span>}
                 
-                {msg.isCall ? (
+                {/* 🎯 กล่องสิ้นสุดการโทร (ลอยอยู่ตรงกลางแชท) */}
+                {msg.type === 'call_end' ? (
+                  <div className="bg-gray-100 dark:bg-[#1A241A] text-gray-500 dark:text-gray-400 text-xs px-4 py-1.5 rounded-full flex items-center gap-2 my-2 shadow-sm border dark:border-green-900/30">
+                    <Phone size={14} className="text-gray-400" /> 
+                    <span className="font-medium">{msg.text}</span>
+                  </div>
+                ) : msg.isCall ? (
                   <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] flex flex-col gap-3 shadow-md ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white dark:bg-[#1A241A] text-gray-900 dark:text-gray-100 border dark:border-green-900/30 rounded-tl-none'}`}>
                     <div className="flex items-center gap-2 font-bold">{msg.callType === 'video' ? <Video size={18} /> : <Phone size={18} />}{msg.text}</div>
                     
-                    {/* 🎯 ปุ่มกดเข้าร่วมสาย โชว์ให้ "ทุกคน" เห็นเลย! */}
                     <Link href={msg.callLink} className={`text-center py-2 px-6 rounded-xl font-bold shadow-sm transition-all active:scale-95 ${msg.senderId === currentUser?.uid ? 'bg-white text-green-600 hover:bg-green-50' : 'bg-green-500 text-white hover:bg-green-400 animate-pulse'}`}>
                       📞 เข้าร่วม
                     </Link>
