@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase"; // 🎯 นำเข้า db
+import { ref, push } from "firebase/database"; // 🎯 นำเข้าคำสั่ง push
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { Loader2 } from "lucide-react";
 
@@ -19,7 +20,6 @@ export default function CallPage() {
     if (!currentUser || !containerRef.current) return;
 
     const myMeeting = async (element: HTMLDivElement) => {
-      // 🎯 ใช้ AppID จากโปรเจกต์ Voice & Video Call ที่แจก 10000 นาที
       const appID = 534081230;
       const serverSecret = "989779f053c976fd8755052020d93f16";
 
@@ -44,8 +44,27 @@ export default function CallPage() {
         showMyCameraToggleButton: callType === "video",
         showAudioVideoSettingsButton: true,
         showScreenSharingButton: false,
-        onLeaveRoom: () => {
-          router.back();
+        
+        // 🎯 ฟังก์ชันตอนกดปุ่มวางสายสีแดง!
+        onLeaveRoom: async () => {
+          try {
+            // เช็คว่าเป็นวิดีโอหรือเสียง
+            const endText = callType === "video" ? "สิ้นสุดวิดีโอคอลแล้ว" : "สิ้นสุดการโทรด้วยเสียงแล้ว";
+            const chatRef = isGroup ? ref(db, `groupChats/${roomId}`) : ref(db, `chats/${roomId}`);
+            
+            // ยิงข้อความบอกว่าวางสายลงในแชท!
+            await push(chatRef, {
+              type: 'call_end', // 🎯 กำหนดประเภทเป็นสายจบแล้ว
+              text: endText,
+              senderId: currentUser.uid,
+              senderName: currentUser.displayName,
+              timestamp: Date.now()
+            });
+          } catch (err) {
+            console.error("ส่งข้อความวางสายไม่สำเร็จ", err);
+          }
+          
+          router.back(); // วาร์ปกลับหน้าแชท
         }
       });
     };
