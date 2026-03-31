@@ -94,13 +94,11 @@ function ChatContent() {
     }
   }, [currentUser, targetUid, groupId]);
 
-  // 🎯 ดึงข้อมูล GIF (ใช้ API Key ใหม่ของพี่ ibung!)
   useEffect(() => {
     if (showGiphy) {
       const fetchGifs = async () => {
         const query = giphySearch.trim() || "trending";
         try {
-          // 🔥 ใส่ Key ของพี่ตรงนี้เรียบร้อยแล้ว
           const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=9ugBrU9i1uJi5LhXKJFtxbVb0bbpHmQV&q=${query}&limit=20`);
           const { data } = await res.json();
           setGifs(data || []);
@@ -320,9 +318,11 @@ function ChatContent() {
                 {msg.isCall ? (
                   <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] flex flex-col gap-3 shadow-md ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white dark:bg-[#1A241A] text-gray-900 dark:text-gray-100 border dark:border-green-900/30 rounded-tl-none'}`}>
                     <div className="flex items-center gap-2 font-bold">{msg.callType === 'video' ? <Video size={18} /> : <Phone size={18} />}{msg.text}</div>
-                    {msg.senderId !== currentUser?.uid && (
-                      <Link href={msg.callLink} className="bg-green-500 hover:bg-green-400 text-white text-center py-2 px-6 rounded-xl font-bold animate-pulse shadow-md transition-colors">📞 กดเข้าร่วมการโทร</Link>
-                    )}
+                    
+                    {/* 🎯 ปุ่มกดเข้าร่วมสาย โชว์ให้ "ทุกคน" เห็นเลย! */}
+                    <Link href={msg.callLink} className={`text-center py-2 px-6 rounded-xl font-bold shadow-sm transition-all active:scale-95 ${msg.senderId === currentUser?.uid ? 'bg-white text-green-600 hover:bg-green-50' : 'bg-green-500 text-white hover:bg-green-400 animate-pulse'}`}>
+                      📞 เข้าร่วม
+                    </Link>
                   </div>
                 ) : (
                   <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none shadow-md' : 'bg-gray-100 text-gray-900 dark:bg-[#1A241A] dark:text-gray-100 rounded-tl-none shadow-sm'}`}>
