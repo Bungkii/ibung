@@ -3,8 +3,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { ref, onValue, push, set, onDisconnect } from "firebase/database";
 import { useSearchParams, useRouter } from "next/navigation";
-// 🎯 เพิ่ม Phone, Video กลับมาแล้ว!
-import { ArrowLeft, Send, Loader2, Search, Sparkles, Plus, Users, Check, Phone, Video } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, Sparkles, Plus, Users, Check, Phone, Video, Mic, Square, Smile } from "lucide-react";
 import Link from "next/link";
 
 function ChatContent() {
@@ -26,10 +25,19 @@ function ChatContent() {
   const [myNote, setMyNote] = useState("");
   const [allNotes, setAllNotes] = useState<any[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
-
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
+  // 🎯 State สำหรับ Giphy
+  const [showGiphy, setShowGiphy] = useState(false);
+  const [giphySearch, setGiphySearch] = useState("");
+  const [gifs, setGifs] = useState<any[]>([]);
+
+  // 🎯 State สำหรับอัดเสียง
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
 
   const filteredUsers = allUsers.filter(user => user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -85,18 +93,99 @@ function ChatContent() {
     }
   }, [currentUser, targetUid, groupId]);
 
+  // 🎯 ดึงข้อมูล GIF
+  useEffect(() => {
+    if (giphySearch.length > 1) {
+      const fetchGifs = async () => {
+        const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=Ptd9FtsZ4B5Hq173Z2Yg3n1p2e76N085&q=${giphySearch}&limit=10`);
+        const { data } = await res.json();
+        setGifs(data);
+      };
+      const debounce = setTimeout(() => fetchGifs(), 500);
+      return () => clearTimeout(debounce);
+    } else {
+      setGifs([]);
+    }
+  }, [giphySearch]);
+
+  const sendGif = async (url: string) => {
+    if (!currentUser) return;
+    if (targetUid) {
+      const chatId = currentUser.uid < targetUid ? `${currentUser.uid}_${targetUid}` : `${targetUid}_${currentUser.uid}`;
+      await push(ref(db, `chats/${chatId}`), { type: 'gif', url, senderId: currentUser.uid, timestamp: Date.now() });
+    } else if (groupId) {
+      await push(ref(db, `groupChats/${groupId}`), { type: 'gif', url, senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now() });
+    }
+    setShowGiphy(false);
+    setGiphySearch("");
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder.current = new MediaRecorder(stream);
+      audioChunks.current = [];
+      mediaRecorder.current.ondataavailable = (e) => audioChunks.current.push(e.data);
+      mediaRecorder.current.onstop = () => {
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob); 
+        reader.onloadend = async () => {
+          const base64Audio = reader.result;
+          if (!currentUser) return;
+          if (targetUid) {
+            const chatId = currentUser.uid < targetUid ? `${currentUser.uid}_${targetUid}` : `${targetUid}_${currentUser.uid}`;
+            await push(ref(db, `chats/${chatId}`), { type: 'voice', url: base64Audio, senderId: currentUser.uid, timestamp: Date.now() });
+          } else if (groupId) {
+            await push(ref(db, `groupChats/${groupId}`), { type: 'voice', url: base64Audio, senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now() });
+          }
+        };
+      };
+      mediaRecorder.current.start();
+      setIsRecording(true);
+    } catch (err) { alert("กรุณาอนุญาตให้ใช้งานไมโครโฟนครับ"); }
+  };
+
+  const stopRecording = () => {
+    mediaRecorder.current?.stop();
+    setIsRecording(false);
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUser) return;
-    
     if (targetUid) {
       const chatId = currentUser.uid < targetUid ? `${currentUser.uid}_${targetUid}` : `${targetUid}_${currentUser.uid}`;
-      await push(ref(db, `chats/${chatId}`), { text: newMessage, senderId: currentUser.uid, timestamp: Date.now() });
+      await push(ref(db, `chats/${chatId}`), { type: 'text', text: newMessage, senderId: currentUser.uid, timestamp: Date.now() });
       await push(ref(db, `notifications/${targetUid}`), { senderName: currentUser.displayName, text: newMessage, timestamp: Date.now() });
     } else if (groupId) {
-      await push(ref(db, `groupChats/${groupId}`), { text: newMessage, senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now() });
+      await push(ref(db, `groupChats/${groupId}`), { type: 'text', text: newMessage, senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now() });
     }
     setNewMessage("");
+  };
+
+  // 🎯 ระบบโทร (รองรับทั้งโทรเดี่ยวและ โทรกลุ่ม ZEGOCLOUD)
+  const startCall = async (type: 'audio' | 'video') => {
+    if (!currentUser) return;
+    const isGroup = !!groupId; // เช็คว่าเป็นกลุ่มมั้ย
+    const roomCallId = targetUid 
+      ? (currentUser.uid < targetUid ? `${currentUser.uid}_${targetUid}` : `${targetUid}_${currentUser.uid}`)
+      : groupId;
+
+    const callLink = `/call/${roomCallId}?type=${type}&isGroup=${isGroup}`;
+
+    if (targetUid) {
+      await push(ref(db, `chats/${roomCallId}`), { text: type === 'video' ? 'วิดีโอคอลหาคุณ...' : 'โทรด้วยเสียงหาคุณ...', senderId: currentUser.uid, timestamp: Date.now(), isCall: true, callType: type, callLink });
+      await push(ref(db, `notifications/${targetUid}`), { senderName: currentUser.displayName, text: `กำลังโทรหาคุณ...`, timestamp: Date.now() });
+    } else if (groupId) {
+      await push(ref(db, `groupChats/${groupId}`), { text: type === 'video' ? 'วิดีโอคอลกลุ่ม...' : 'โทรด้วยเสียงกลุ่ม...', senderId: currentUser.uid, senderName: currentUser.displayName, timestamp: Date.now(), isCall: true, callType: type, callLink });
+      targetGroup?.members?.forEach((memberId: string) => {
+        if (memberId !== currentUser.uid) {
+          push(ref(db, `notifications/${memberId}`), { senderName: `${currentUser.displayName} (กลุ่ม ${targetGroup.name})`, text: `กำลังเริ่มโทรกลุ่ม...`, timestamp: Date.now() });
+        }
+      });
+    }
+    router.push(callLink);
   };
 
   const createGroup = async () => {
@@ -122,35 +211,22 @@ function ChatContent() {
           <div className="relative mb-4"><Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" /><input type="text" placeholder="ค้นหาเพื่อน..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#1A241A] rounded-xl outline-none text-sm" /></div>
         </div>
 
-        {/* 🎯 แถบโน้ต: ซ่อน Scrollbar ขาวๆ และจัดระยะห่างไม่ให้ชนกัน */}
-        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden px-4 pt-12 pb-4 border-b dark:border-green-900/20" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          
-          <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[80px]" onClick={() => setShowGroupModal(true)}>
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-green-500 flex items-center justify-center bg-green-50 dark:bg-green-900/10 active:scale-95 transition-transform">
-              <Plus className="text-green-500" />
-            </div>
-            <span className="text-[11px] font-bold text-green-500 mt-1 truncate w-full text-center">สร้างกลุ่ม</span>
+        {/* 🎯 แถบ Note แบบคลีนๆ */}
+        <div className="flex gap-4 overflow-x-auto px-4 py-4 border-b dark:border-green-900/20 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[60px]" onClick={() => setShowGroupModal(true)}>
+            <div className="w-14 h-14 rounded-full border-2 border-dashed border-green-500 flex items-center justify-center bg-green-50 text-green-500"><Plus size={20} /></div>
+            <span className="text-[10px] font-bold text-green-500 mt-1 w-full text-center truncate">สร้างกลุ่ม</span>
           </div>
 
-          <div className="flex-shrink-0 flex flex-col items-center gap-1 relative cursor-pointer w-[80px]" onClick={() => setShowNoteModal(true)}>
-            <div className="w-16 h-16 rounded-full p-1 border-2 border-gray-200 dark:border-green-900/50">
-              <img src={currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" />
-            </div>
-            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[11px] shadow-md w-max max-w-[80px] truncate z-50">
-              {allNotes.find(n => n.userId === currentUser?.uid)?.text || "+ ทิ้งโน้ต"}
-            </div>
-            <span className="text-[11px] text-gray-400 font-bold mt-1 truncate w-full text-center">คุณ</span>
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer w-[60px] relative" onClick={() => setShowNoteModal(true)}>
+            <div className="w-14 h-14 rounded-full p-0.5 border-2 border-green-500"><img src={currentUser?.photoURL || "/api/placeholder/40/40"} className="w-full h-full rounded-full object-cover" alt="" /></div>
+            <span className="text-[10px] text-gray-400 font-bold mt-1 w-full text-center truncate">คุณ</span>
           </div>
 
           {allNotes.filter(n => n.userId !== currentUser?.uid).map((n, i) => (
-            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 relative w-[80px]">
-              <div className="w-16 h-16 rounded-full p-1 border-2 border-transparent dark:border-green-900/30">
-                <img src={n.userPhoto} className="w-full h-full rounded-full object-cover" alt="" />
-              </div>
-              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-white dark:bg-[#1A241A] dark:text-gray-200 border border-gray-200 dark:border-green-900/50 py-1.5 px-3 rounded-2xl text-[11px] shadow-md w-max max-w-[80px] truncate z-50">
-                {n.text}
-              </div>
-              <span className="text-[11px] text-gray-500 mt-1 truncate w-full text-center">{n.userName}</span>
+            <div key={i} className="flex-shrink-0 flex flex-col items-center gap-1 w-[60px]">
+              <div className="w-14 h-14 rounded-full p-0.5 border-2 border-transparent dark:border-green-900/30"><img src={n.userPhoto} className="w-full h-full rounded-full object-cover" alt="" /></div>
+              <span className="text-[10px] text-gray-500 mt-1 w-full text-center truncate">{n.userName}</span>
             </div>
           ))}
         </div>
@@ -164,51 +240,83 @@ function ChatContent() {
           ))}
           {filteredUsers.map(user => (
             <Link href={`/chat?id=${user.uid}`} key={user.uid} className={`flex items-center gap-3 p-2.5 rounded-2xl ${user.uid === targetUid ? 'bg-green-500 text-white shadow-md' : 'hover:bg-gray-100 dark:hover:bg-green-900/10'}`}>
-              <div className="relative flex-shrink-0"><img src={user.photoURL} className="w-10 h-10 rounded-full object-cover border dark:border-green-900/30" alt="" />{user.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-[#0D140D] rounded-full" />}</div>
-              <div className="flex flex-col min-w-0"><span className={`font-bold text-sm truncate ${user.uid === targetUid ? 'text-white' : ''}`}>{user.displayName}</span><span className={`text-[10px] ${user.uid === targetUid ? 'text-green-100' : 'text-gray-400'}`}>{user.isOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></div>
+              <div className="relative flex-shrink-0"><img src={user.photoURL} className="w-10 h-10 rounded-full object-cover border dark:border-green-900/30" alt="" />{user.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}</div>
+              <div className="flex flex-col min-w-0"><span className={`font-bold text-sm truncate ${user.uid === targetUid ? 'text-white' : ''}`}>{user.displayName}</span></div>
             </Link>
           ))}
         </div>
       </aside>
 
       {(targetUid || groupId) && (
-        <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A]">
-          
-          {/* 🎯 Header แชท: คืนชีพปุ่ม โทร & วิดีโอคอล แล้ว! */}
+        <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0A0F0A] relative">
           <header className="px-6 py-4 flex items-center justify-between border-b dark:border-green-900/20 bg-white/80 dark:bg-[#0A0F0A]/80 backdrop-blur-md sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <Link href="/chat" className="md:hidden"><ArrowLeft className="w-5 h-5 text-gray-500" /></Link>
               {targetUser ? (
                 <><img src={targetUser?.photoURL} className="w-10 h-10 rounded-full object-cover" alt="" /><h2 className="font-bold">{targetUser?.displayName}</h2></>
               ) : (
-                <><div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center"><Users className="w-5 h-5 text-green-600" /></div><h2 className="font-bold">{targetGroup?.name}</h2></>
+                <><div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center"><Users className="w-5 h-5 text-green-600" /></div><h2 className="font-bold">{targetGroup?.name}</h2></>
               )}
             </div>
             
-            {/* ปุ่มโทร / วิดีโอ (แสดงเฉพาะตอนแชทเดี่ยว) */}
-            {targetUser && (
-              <div className="flex items-center gap-5 text-green-600 dark:text-green-500">
-                <button onClick={() => alert("ระบบโทรเสียงกำลังพัฒนาก๊าบ!")} className="hover:opacity-70 transition-opacity">
-                  <Phone className="w-5 h-5" />
-                </button>
-                <button onClick={() => alert("ระบบวิดีโอคอลกำลังพัฒนาก๊าบ!")} className="hover:opacity-70 transition-opacity">
-                  <Video className="w-6 h-6" />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-5 text-green-600 dark:text-green-500">
+              <button onClick={() => startCall('audio')} className="hover:opacity-70 hover:scale-110 active:scale-90 transition-all"><Phone className="w-5 h-5" /></button>
+              <button onClick={() => startCall('video')} className="hover:opacity-70 hover:scale-110 active:scale-90 transition-all"><Video className="w-6 h-6" /></button>
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.map(msg => (
               <div key={msg.id} className={`flex flex-col ${msg.senderId === currentUser?.uid ? 'items-end' : 'items-start'}`}>
                 {groupId && msg.senderId !== currentUser?.uid && <span className="text-[10px] text-gray-400 ml-2 mb-1">{msg.senderName}</span>}
-                <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-[#1A241A] rounded-tl-none'}`}>{msg.text}</div>
+                
+                {msg.isCall ? (
+                  <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-[14px] flex flex-col gap-3 shadow-md ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-white border rounded-tl-none'}`}>
+                    <div className="flex items-center gap-2 font-bold">{msg.callType === 'video' ? <Video size={18} /> : <Phone size={18} />}{msg.text}</div>
+                    {msg.senderId !== currentUser?.uid && (
+                      <Link href={msg.callLink} className="bg-green-500 text-white text-center py-2 px-6 rounded-xl font-bold animate-pulse">📞 กดเข้าร่วม</Link>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] ${msg.senderId === currentUser?.uid ? 'bg-green-600 text-white rounded-tr-none' : 'bg-gray-100 rounded-tl-none'}`}>
+                    {msg.type === 'gif' && <img src={msg.url} className="rounded-lg w-full" alt="gif" />}
+                    {msg.type === 'voice' && <audio src={msg.url} controls className="w-full h-10 outline-none" />}
+                    {(!msg.type || msg.type === 'text') && <p className="px-1">{msg.text}</p>}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={scrollRef} />
           </div>
-          <footer className="p-4 bg-white dark:bg-[#0D140D] border-t dark:border-green-900/20">
-            <form onSubmit={sendMessage} className="flex gap-3 bg-gray-50 dark:bg-[#1A241A] rounded-2xl px-4 py-2"><input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="flex-1 bg-transparent outline-none text-sm" /><button type="submit" className="p-2 bg-green-500 text-white rounded-xl"><Send className="w-4 h-4" /></button></form>
+
+          <footer className="p-4 bg-white border-t relative">
+            {/* 🎯 แผงเลือก Giphy */}
+            {showGiphy && (
+              <div className="absolute bottom-[80px] left-4 right-4 md:w-80 bg-white p-4 rounded-3xl shadow-2xl border z-50">
+                <input type="text" placeholder="ค้นหา GIF..." className="w-full p-3 rounded-xl bg-gray-100 mb-3 outline-none text-sm" onChange={e => setGiphySearch(e.target.value)} />
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                  {gifs.map(g => (
+                    <img key={g.id} src={g.images.fixed_height_small.url} className="h-20 rounded-lg cursor-pointer" onClick={() => sendGif(g.images.fixed_height.url)} alt="gif" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 bg-gray-50 rounded-full px-4 py-2 items-center">
+              <button onClick={() => setShowGiphy(!showGiphy)} className="text-gray-400 hover:text-green-500"><Smile size={22} /></button>
+              <form onSubmit={sendMessage} className="flex-1">
+                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="พิมพ์ข้อความ..." className="w-full bg-transparent outline-none text-sm" />
+              </form>
+              
+              {/* 🎯 ปุ่มอัดเสียง */}
+              {isRecording ? (
+                <button onClick={stopRecording} className="text-red-500 animate-pulse bg-red-100 p-2 rounded-full"><Square size={16} fill="currentColor" /></button>
+              ) : (
+                <button onClick={startRecording} className="text-gray-400 hover:text-green-500 p-2"><Mic size={20} /></button>
+              )}
+              
+              <button onClick={sendMessage} className="p-2 bg-green-500 text-white rounded-full ml-1"><Send size={16} /></button>
+            </div>
           </footer>
         </main>
       )}
@@ -224,4 +332,4 @@ function ChatContent() {
   );
 }
 
-export default function ChatPage() { return ( <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-green-500" /></div>}><ChatContent /></Suspense> ); }
+export default function ChatPage() { return ( <Suspense><ChatContent /></Suspense> ); }
